@@ -31,10 +31,12 @@ function [doa,idx,k] = HFR_DP_DFwsf_v1(A,R,U,D,q)
 
 % adapted from
 % Copyright (C) 2017 Brian Emery
-%
 % Version 13-Jun-2017 
 %
-%v1  adapted from emery to also give the doa back
+% v1    8/30/2018 
+%       adapted from emery to also give the 'trace' back as a DOA-like
+%       quantity
+%
 % Anthony Kirincich 
 % WHOI-PO
 % akirincich@whoi.edu
