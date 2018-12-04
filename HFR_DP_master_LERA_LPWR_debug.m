@@ -30,6 +30,8 @@
 %%
 
 clear
+%%% load hamlin paths for HFR_Progs, m_map, etc.
+%cd /home/hfrp/ ; HFR_DP_addpaths_hamlin
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %%%%%%%%%%%     begin user choices       %%%%%%%%%%%%%%%%
@@ -39,13 +41,13 @@ clear
 %%% set site/array information
 
 %%% the site name to process
-% site_name='LPWR';
-% Site_loc = [41+20.904/60 -(70+38.41/60)];
-% Site_bounds=[90 90+180];
+site_name='LPWR';
+Site_loc = [41+20.904/60 -(70+38.41/60)];
+Site_bounds=[90 90+180];
 
-site_name='NWTP';
-Site_loc = [41+14/60+30.96/3600 -(70+6/60+24.85/3600) ];
-Site_bounds=[120 120+180];
+%site_name='NWTP';
+%Site_loc = [41+14/60+30.96/3600 -(70+6/60+24.85/3600) ];
+%Site_bounds=[120 120+180];
     
 %%% set the common constants for the HFR array this site is a part of:
 ARRAY=[];
@@ -79,7 +81,7 @@ scripts_dir=[working_dir '/scripts/'];
 %%% Where are the data  (see HFR_DP_SETUP_README.m for instructions
 base_dir='/Users/anthony/Data/LERA_process';
 %base_dir='/Codar/SeaSonde/Data/RadialSites'; %if wish to place in codar directory
-%base_dir='/Volumes/hfrp/Data/RadialSites';
+%base_dir='/Volumes/hfrp/bdata/RadialSites';
 %base_dir='/Volumes/data/RadialSites';
 
 %%% Where do the DP logs go
@@ -98,11 +100,11 @@ eval(['cd ' working_dir])
 %%% set constants for the HFR
 CONST=[];
 %%% constants that won't change %%%
-CONST.c=299792458;  %m/s speed of light in a vaccum
-    %    c=299705000;   % in air   
-    %    c=299644310;   % in air based on getting v=0 at ibragg (difference of 2 mm/s from first value....)
-%number of antenna elements
-CONST.N=8;
+% CONST.c=299792458;  %m/s speed of light in a vaccum
+%     %    c=299705000;   % in air   
+%     %    c=299644310;   % in air based on getting v=0 at ibragg (difference of 2 mm/s from first value....)
+% %number of antenna elements
+% CONST.N=8;
 %%% how many solutions to process
 CONST.Nmax=4;
 
@@ -110,29 +112,26 @@ CONST.Nmax=4;
 %%% set parameters for spectral processing
 
 %%% the final azimuthal resolution of the radial velocities
-%CONST.bearing_width=5;
-CONST.bearing_width=1;
+CONST.bearing_width=5;
 
 %%% the minimum Signal to Noise ratio allowed (used in Radial averaging and ImageFOLs     
 CONST.snr_min=5;  %dB
 
 %%%% the endpoints of the ave or RM pattern used for DF
 % % NWTP
-%CONST.pattern_ends=[90 290];  % in degT
-CONST.pattern_ends=[90 320];  % in degT
-%CONST.pattern_ends=[10 350];  % in degT
+%CONST.pattern_ends=[90 276];  % in degT
 %i=find(patt.angles>90 & patt.angles<276);
+
 %LPWR
-%CONST.pattern_ends=[90 270];  % in degT
+CONST.pattern_ends=[90 270];  % in degT
 
 
 %%% for imageFOL, set user parameters
 %%%  parameters are: [velD_change max_vel snr_min];  with vels defined in cm/s
 %%%  see imageFOL for more details
-%CONST.imageFOL_user_param=[15 100 CONST.snr_min];  %for a 25MHz site
-%CONST.imageFOL_user_param=[25 100 CONST.snr_min];  %for a 25MHz site
+%CONST.imageFOL_user_param=[20 100 CONST.snr_min];  %for a 25MHz site
 %CONST.imageFOL_user_param=[40 300 CONST.snr_min];  %for a 5MHz site, viewing the Gulf Stream
-CONST.imageFOL_user_param=[30 100 CONST.snr_min];  %for a 16MHz site
+CONST.imageFOL_user_param=[20 100 CONST.snr_min];  %for a 16MHz site
 %CONST.imageFOL_user_param=[40 100 CONST.snr_min];  %for a 16MHz site
 
 %%% define radave RM thresholds... to be used to weed out bad radials before the radial average is made 
@@ -145,8 +144,8 @@ CONST.radave_thresholds=[CONST.snr_min .001 0 200]; % for mle or wsf
 %%% this is done in 10*log10(MS) space, making .05-.5 reasonable thresholds
 %%% that scale with the values to allow small peaks to exist.
 %CONST.doa_peak_thresh=.05;
-CONST.doa_peak_thresh=.5;
 %CONST.doa_peak_thresh=.25;
+CONST.doa_peak_thresh=.5;
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %%% set processing choices
@@ -181,20 +180,16 @@ CONST.which_Ns_meth='music_highest';
 %set processing constants, the only user selectable parts
 CONST.PC=[];
 CONST.PC.MaxRangeKM=100;        % the maximum ranges, in distance to be kept in spectra, from >0 to Max
-% CONST.PC.SpecOverlapPct=50;     %for WOSA, style increased ensembles into CSE
-% CONST.PC.SpeclengthPnts=1024;   %defines the number of points in the spectra
+%CONST.PC.SpecOverlapPct=50;     %for WOSA, style increased ensembles into CSE
 
-CONST.PC.SpecOverlapPct=78;     %for WOSA, style increased ensembles into CSE, the smallest needed for N segments
+%CONST.PC.SpeclengthPnts=2048;   %defines the number of points in the spectra
+CONST.PC.SpecOverlapPct=78;     %for WOSA, style increased ensembles into CSE
 CONST.PC.SpeclengthPnts=1024*2;   %defines the number of points in the spectra
-
-%CONST.PC.SpeclengthPnts=512;   %defines the number of points in the spectra
-
-
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %%% set plotting and printing switches
 %plotting:
-CONST.goplot=[1 0];   %where:
+CONST.goplot=[1 1];   %where:
 %  switch 1 controls the final plots of radial results, etc.  (1=plot, 0=do not plot)
 %  switch 2 controls the intermediary plots within functions  (1=plot, 0=do not plot)
 CONST.goprint=[0 0];   
@@ -211,13 +206,13 @@ CONST.files_to_process_method=1;
 %CONST.files_to_process_method=2;
 
 %%% set the time frame to examine, only used by method 1
-%  start_time=datenum(2017,8,15,12,0,0);
-% % %start_time=datenum(2017,8,17,0,00,0);
-%  end_time=datenum(2017,8,18,0,0,0);
+% start_time=datenum(2017,8,15,12,0,0);
+% %start_time=datenum(2017,8,17,0,00,0);
+% end_time=datenum(2017,8,18,0,0,0);
 
- start_time=datenum(2018,9,1,0,0,0);
- end_time=datenum(2019,10,1,0,0,0);
- CONST.files_to_process_dates=[start_time end_time];
+start_time=datenum(2018,9,29,0,0,0);
+end_time=datenum(2018,11,1,0,0,0);
+CONST.files_to_process_dates=[start_time end_time];
 
 
 %%%%%%%%%%% end radial processing setup %%%%%%%%%%    
@@ -229,33 +224,33 @@ CONST.files_to_process_method=1;
 % running the processing scripts
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-% 
-% %%% setup logfile name for diary
-% logfn=['LOG_v7_' mfilename '_'  datestr(now,30) '.log'];
-% diary([log_dir '/' logfn]);
-% tic
+
+% %%% setup logfile name for diary of the processing
+% %%% this can be helpful if running in realtime
+%  logfn=['LOG_v7_' mfilename '_'  datestr(now,30) '.log'];
+%  diary([log_dir '/' logfn]);
+%  tic
 
 %%% for this site, prepare for processing
-HFR_DP_lera_ts2radial_prepwork_v2
 %%% sets up processing directories, loads site info and cal, and 
 %%% identifies files that need processing
+HFR_DP_lera_ts2radial_prepwork_v3
 
-%  %limit the number of files  on in any 1 pass of this processing.  
-%  % this can be helpful if running in realtime
+
+%  %%% limit the number of files  on in any 1 pass of this processing.  
+%  %%% this can be helpful if running in realtime
 %  if length(fnames)>5;
 %      fnames=fnames(1:5);
 %  end
 
 %%
 %%% now loop overeach file in fnames to process data
-for jjj=1:length(fnames)
-
-%     if jjj==1;  RC.COMP_FAC=8;
-%     elseif jjj==2;  RC.COMP_FAC=16;
-%     end
-    %%
+for jjj=1:1:length(fnames)
+    
 %%% display the file to be processed
-filein=fnames{jjj};
+filein=fnames{jjj}
+
+%%
 disp(filein)
 
 % %reload header and patt files
@@ -271,24 +266,16 @@ HEAD.ProcessingSteps={mfilename};
 
 %CONST.goplot(2)=1;
 %%% load the ts data for this file and make the ensemble-averaged spectra
-%[SpecHead,data,mtime]=lera_time2spectra_v3(incoming_ts_file_dir,incoming_spectra_file_dir,filein,RC,HEAD,CONST);
-if end_time<datenum(2018,5,2);   % Use the old radar_header for BW=100
-[SpecHead,data,mtime]=lera_time2spectra_v2(incoming_ts_file_dir,incoming_spectra_file_dir,filein,RC,HEAD,CONST);
-    disp('using an old spectral file! is this your intent?')
-else  %use the new one.
-%[SpecHead,data,mtime]=lera_time2spectra_v3(incoming_ts_file_dir,incoming_spectra_file_dir,filein,RC,HEAD,CONST);  %new from 5/1/2018    
-%[SpecHead,data,mtime]=lera_time2spectra_v4(incoming_ts_file_dir,incoming_spectra_file_dir,filein,RC,HEAD,CONST);  %new from 8/1
-
-[SpecHead,data,mtime]=lera_time2spectra_v5(incoming_ts_file_dir,incoming_spectra_file_dir,filein,RC,HEAD,CONST);  %new from 8/1
-
-end
-
+%[SpecHead,data,mtime]=lera_time2spectra_v2(incoming_ts_file_dir,incoming_spectra_file_dir,filein,RC,HEAD,CONST);
+%[SpecHead,data,mtime]=lera_time2spectra_v4(incoming_ts_file_dir,incoming_spectra_file_dir,filein,RC,HEAD,CONST);
+[SpecHead,data,mtime]=lera_time2spectra_v5(incoming_ts_file_dir,incoming_spectra_file_dir,filein,RC,HEAD,CONST);
 
 %
 %%%save the spectra file    
 %%%% get the output filename, based on the filein %%%%
 i=find(filein=='_');
-fileout=['CSE_' RC.SiteName '_' filein(i(2)+1:end)];
+%fileout=['CSE_' RC.SiteName '_' filein(i(2)+1:end)];
+fileout=['CSE_' RC.SiteName '_' filein(1:i(1)-1) '.mat'];
 
 %%%%% save this data for direction finding.
 eval(['cd ' incoming_spectra_file_dir])
@@ -314,9 +301,9 @@ if CONST.goplot(1)==1;
     end
     c=colorbar;  set(c,'position',[.925 .1 .01 .2])
     
-    %%%% code to plot the ave power level at 2 ranges.
+%     %%%% code to plot the ave power level at 2 ranges.
 %     dd=[]; dd2=[];
-%     figure; clf;
+%     figure(10); clf;
 %      for ii=1:RC.NANT
 %         eval(['d=data.a' num2str(ii) num2str(ii) ';'])
 %         %subplot(4,2,ii);
@@ -327,7 +314,7 @@ if CONST.goplot(1)==1;
 %    plot(v,mean(dd2));  hg;
 %       axis([-8 8 -120 20])
 %   title(fileout,'interpreter','none')
-%  
+ 
     
     if CONST.goprint(1)==1
         %print to figure
@@ -341,10 +328,11 @@ if CONST.goplot(1)==1;
     end
 end
 
+%%
 %%%% if just wish to loop over spectral creation step
-%  pause
-%  end
-%  return
+pause
+  end
+  return
 
 %%
 %%%% run radial metric processing %%%
@@ -357,17 +345,17 @@ end
 % elseif i5==3; CONST.which_df='mle';                                
 % end
 
-%HFR_DP_lera_spectra2radialmetric_process_v2
-%HFR_DP_lera_spectra2radialmetric_process_v3
-HFR_DP_lera_spectra2radialmetric_process_v4 
+%HFR_DP_lera_spectra2radialmetric_process_v2   % use this one for DP_methods
+%HFR_DP_lera_spectra2radialmetric_process_v3    %use this one for music v1
+HFR_DP_lera_spectra2radialmetric_process_v4    %add data cut for near ranges, due to wave reflections
 
 %%% if wishing to compare different RM for the same file
 % eval(['RM' num2str(i5) '=RM;'])
 % 
 
-% %%%% if just doing the FOLS%
-pause
- end
+% %%%% if just doing the FOLS
+% pause
+%  end
  
 
 %
@@ -376,7 +364,7 @@ pause
 %mostly, only the results for one peak of one solution are given in
 %each line,
 % cols   fields
-% 1-2    lat lon
+% 1-2    lon lat
 % 3-4    u v   (here nan as will not be used)
 % 5      flag    (here nan, used by COS but not here)
 % 6 range
@@ -444,14 +432,13 @@ if CONST.goplot(1)==1
         eval(['cd ' working_dir])
     end% if go print
 end% if goplot
-
 %%
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %%% Compute Radial Average (equivalent to COS radial short result)
 
 %%%% if RM is big enough continue to use RM to process radial metrics to radave files.
 if length(RM.data)>500;
-%     
+    
 %%% compute radial averages   
 [RADIAL,HEAD]=HFR_DP_lera_RadialAverage_v1(RM,patt,HEAD,CONST);
 
@@ -498,21 +485,21 @@ if CONST.goplot(1)==1
 end% if goplot
 
 
-%%% convert existing, cleaned Rclean file to an ascii output in the
-%%% COS lluv format,
+%%%% convert existing, cleaned Rclean file to an ascii output in the
+%%%% COS lluv format,
 
 % %move to saving directory
 % eval(['cd ' outgoing_radialavelluv_file_dir])
 % 
-% [Rclean,HEAD]=HFR_DP_RadAve2LLUV_v5(Rclean,CONST,PATT,HEAD,CSS_Head);
+[Rclean,HEAD]=HFR_DP_lera_RadAve2LLUV_v1(Rclean,CONST,patt,HEAD,SpecHead);
 % 
 % %move back to inital base directory
 % eval(['cd ' working_dir])  
 
 
 end %if RM is long enough to compute radial averages...
-
- end  % end jjj over fnames files
+%%
+end  % end jjj over fnames files
 
 
 toc

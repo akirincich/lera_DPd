@@ -68,6 +68,16 @@ function [FOreg, FOregi, Alims, HEAD, DN_out]=imageFOLs_v2(data,iant,iFBragg,v_i
 %  v2  8/2017
 %   - altered to use the average of all antennas.
 %
+%  v3 4/2018
+%     altered final reporting of FOLs from segments to catch bugs in
+%     dropping segments near bragg
+%
+%
+% v4  10/2018 
+%      realized that near range crap was influencing down range FOLs by
+%      starting with a potentally wider base.  Move initial point of final
+%      survey starting point to rc3 to work around this.
+%
 %    Anthony Kirincich
 %    WHOI-PO
 %    akirincich@whoi.edu
@@ -94,12 +104,10 @@ snr_min=user_param(3);
 % %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
 
-
-
 %%%%%%%%%%%% set sFOL standard parameters for processing %%%%%%%%
 %%%%%%%%%%%%    generally do not vary with site          %%%%%%%%
 %min_dB=-170;  %in dB, threshold lowest power.
-min_dB=-70;  %in dB, threshold lowest power.   % for lera systems.
+%min_dB=-70;  %in dB, threshold lowest power.   % for lera systems.
 seg_thres=4;   %min # of resulting MCWS segments that must be found in each half
 % if lower # is found, Alim output is based on snr
 % exceedances rather than segments alone  (see below).
@@ -141,8 +149,8 @@ gain3=nanmean(gains(:,:,iant),3); %clear gains
 %pcolor(gain3); shading flat; colorbar
 %%%
 
-%set minimium value for gain3
-i=find(gain3<min_dB); gain3(i)=min_dB;
+% %set minimium value for gain3
+% i=find(gain3<min_dB); gain3(i)=min_dB;
 
 %%%%% filter cross-spectra to smooth gain3  %%%%%%%
 %initially, use a lengthscale based on the spectra length of vel_scale
@@ -486,14 +494,14 @@ FOreg(:,[1:iFBragg(1)-N_max iFBragg(1)+N_max:iFBragg(2)-N_max iFBragg(2)+N_max:e
 dd=diff(FOreg_all')';  %pulls out the ridge lines of interest
 lhs=iFBragg(1).*ones(n,2); rhs=iFBragg(2).*ones(n,2);
 
-for ii=1:n
+for ii=4:n  %start this at RC 4 to be removed from wave returns in first RCs
     %%% if in the first RC, be careful to set the limits as close to the
-    %%% Bragg line as possible to limit the potential for 2nd-order swell
+    %%% Bragg line as possible to limit thes potential for 2nd-order swell
     %%% inclusion at low range cells,  i.e. a ridge line exists along the 
     %%% outer edge of the bragg, but curves back down to low RCs to include
     %%% 2nd order  (mostly a 25 MHZ problem.)
-    if ii==1;
-        i=[0 find(dd(1,:)~=0) m];
+    if ii==3;
+        i=[0 find(dd(4,:)~=0) m];  %start this at rc3 not 1
         %For the left side 
         ifl=find(i<iFBragg(1));       ifr=find(i>iFBragg(1));    %find the ridges to the left and right of the bragg line
          fs=[(i(ifl(end))-iFBragg(1)) (i(ifr(1))-iFBragg(1))];
@@ -509,7 +517,7 @@ for ii=1:n
     else  %ii>1
         %find the beginning and end of each segment at this range cell
         istart=find(dd(ii,:)==1); iend=find(dd(ii,:)==-1);
-        if length(istart)~=length(iend) ; disp('segment error'); sdfasfasfad; break; end 
+        if length(istart)~=length(iend) ; disp('segment error'); sdfasfasfad; return; end 
         %eliminate those segments that have no energy in the bragg region
         for i=1:length(istart)
             if isempty(intersect(istart(i):iend(i),find(FOreg(ii,:)==1)))==1;
@@ -522,16 +530,56 @@ for ii=1:n
         %handle left side of each of the peaks first. 
         if isempty(istart)==0;
             [s,is]=sort(abs(istart-lhs(ii-1,1)));   %for the lhs
-             if abs(istart(is(1))-iFBragg(1))<=N_max; lhs(ii,1)=istart(is(1)); end
+             if abs(istart(is(1))-iFBragg(1))<=N_max; lhs(ii,1)=istart(is(1)); end  %pick the one that is closest to the previous and within Nmax of the Bragg line
+            %fix this estimate if the whole FOL is on one side of the Bragg
+            %and there is a second segment that wraps thru bragg that I'm missing
+             if istart(is(1))-iFBragg(1) > 0;  %it should be odd to have the starting value be on the wrong side of the bragg line
+                if is(1)>1 %there is a start to the left of this one
+                    if istart(is(1)-1)-iFBragg(1)<0 %the istart to the left of the shortest path is on the correct side of the Bragg line
+                        lhs(ii,1)=istart(is(1)-1);   %use this one instead
+                    end
+                end
+             end
+             
             [s,is]=sort(abs(istart-rhs(ii-1,1)));   %for the rhs
              if abs(istart(is(1))-iFBragg(2))<=N_max; rhs(ii,1)=istart(is(1)); end
+             %fix this estimate if the whole FOL is on one side of the Bragg
+            %and there is a second segment that wraps thru bragg that I'm missing             
+             if istart(is(1))-iFBragg(2) > 0;  %it should be odd to have the starting value be on the wrong side of the bragg line
+                if is(1)>1 %there is a start to the left of this one
+                    if istart(is(1)-1)-iFBragg(2)<0 & abs(istart(is(1)-1)-iFBragg(2))<N_max %the istart to the left of the shortest path is on the correct side of the Bragg line
+                        rhs(ii,1)=istart(is(1)-1);   %use this one instead
+                    end
+                end
+             end
         end
+        
         %handle right side of peak second.
         if isempty(iend)==0;
             [s,is]=sort(abs(iend-lhs(ii-1,2)));   %for the lhs
             if abs(iend(is(1))+1-iFBragg(1))<=N_max; lhs(ii,2)=iend(is(1))+1; end
+            %fix this estimate if the whole FOL is on one side of the Bragg
+            %and there is a second segment that wraps thru bragg that I'm missing
+              if iend(is(1))-iFBragg(1) < 0;  %it should be odd to have the ending value be on the wrong side of the bragg line
+                if length(is)-is(1)>0 %there is an end to the right of this one
+                    if iend(is(1)+1)-iFBragg(1) > 0 & abs(iend(is(1)+1)-iFBragg(1))<N_max %the iend to the right of the shortest path is on the correct side of the Bragg line
+                        lhs(ii,2)=iend(is(1)+1);   %use this one instead
+                    end
+                end
+              end
+             
             [s,is]=sort(abs(iend-rhs(ii-1,2)));   %for the rhs
             if abs(iend(is(1))+1-iFBragg(2))<=N_max; rhs(ii,2)=iend(is(1))+1; end
+            %fix this estimate if the whole FOL is on one side of the Bragg
+            %and there is a second segment that wraps thru bragg that I'm missing
+            if iend(is(1))-iFBragg(2) < 0;  %it should be odd to have the ending value be on the wrong side of the bragg line
+                if length(is)-is(1)>0 %there is an end to the right of this one
+                    if iend(is(1)+1)-iFBragg(2) > 0 %the iend to the right of the shortest path is on the correct side of the Bragg line
+                        rhs(ii,2)=iend(is(1)+1);   %use this one instead
+                    end
+                end
+             end
+
         end        
     end  
 %     %%% wait, is there energy in these bands?, reduce the fols to only
@@ -583,10 +631,14 @@ FOreg=0*DL; FOreg(is(i))=1;
 if goplot(1)==1
     figure(7);
     for ii=1:num_plots
-        subplot(num_plots,1,ii); hold on;
+        subplot(num_plots,1,ii);
+        if ii==1;  pcolor(gain3); shading flat; colorbar;  caxis([-80 0]); title('Raw Ant3 Spectral Power with segments (red) and sFOLs (white) shown');
+        elseif ii==2; pcolor(h2); shading flat; colorbar; caxis([0 1]); title('Normalized Ant3 Spectral Power with segments (red) and sFOLs (white) shown');
+        end
+        hold on;
         [cs,ho]=contour(DL,[0 1],'r');
         [cs,ho]=contour(FOreg,[1 1],'w');
-        plot(Alims,(1:n)'*[1 1 1 1],'k','linewidth',2)
+        plot(Alims,(1:n)'*[1 1 1 1],'k','linewidth',2);
     end
     drawnow
 end

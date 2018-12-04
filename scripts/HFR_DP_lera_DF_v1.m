@@ -28,19 +28,12 @@ function [R, HEAD]=HFR_DP_lera_df_vd(data,FOregi,HEAD,SpecHead,patt,CONST)
 %
 % OUTPUT:
 %
-%   R  --  A matrix of radial metric output.  This output
-%          follows COS documentation for column/field order for lack
-%          of a better option. Outgoing data starts with the range
-%          (column 6) of COS radial metrics file. The rest (lon lat
+%   R  --  A matrix of radial metric output starting with the range
+%           of radial metrics file. The rest (lon lat
 %          u v flag) are added later.
 %
 %         The number rows of R is variable and depends on the number of
 %         FOregi and number of multiple angle solutions
-%
-%         Columns of R are organized to be similar to COS radial metrics file
-%           starting with range (column 6).  The rest(lon lat u v flag) are 
-%           added after all FOLs are processed in 
-%           FR_DP_lera_spectra2radialmetric_process_v
 %
 %       R columns given here are:
 %           1 range
@@ -88,53 +81,36 @@ function [R, HEAD]=HFR_DP_lera_df_vd(data,FOregi,HEAD,SpecHead,patt,CONST)
 % condense and combine after finished
 for ii=1:CONST.Nmax
     eval(['R' num2str(ii) '=nan.*ones(length(FOregi),31);'])   %output array for sing or Duel1
-    %R2=nan.*ones(length(FOregi),29);   %output for Duel2
 end
 
 %%% prep for calculations %%%%%
-
 %%% establish the noise floor, by looking at the spectral power levels
 gains=[];
 for i=1:CONST.N
     eval(['gains(:,:,i)=abs(data.a' num2str(i) num2str(i) '); '])
 end
 
-%%%% old method that seeks the lowest value for the noise floor and
-%%%% estimates the power based on the
-% %noise_floor=median(gain3(length(SpecHead.RangeKm),:));
-% %%% find the one with the lowest noise floor and use this
-% noise_floor=nanmean(squeeze(gains(end,:,:)));
-% i=find(noise_floor==min(noise_floor));
-% noise_floor=noise_floor(i(1));
-% gain3=gains(:,:,i(1)); clear gains;
-% %noise_floor=median(gain3(length(SpecHead.RangeKm),:));
-% %noise33=median(data.a33(length(SpecHead.RangeKm),:));
+%%%%% establish the noise floor %%%%%%%%
+%%% find the one with the lowest noise floor and use this as the noise floor
+noise_floor=nanmean(squeeze(gains(end,:,:)));
+i=find(noise_floor==min(noise_floor));
+noise_floor=noise_floor(i(1));
+gain3=gains(:,:,i(1)); clear gains;
 
-% %%% method that uses spectral power (abs scale to establish the noise floor.
-% gg=(nanmean(gains,3)).^2;
-% noise_floor_sp=nanmean(gg(end,[1:CONST.imageFOL_user_param end-CONST.imageFOL_user_param:end]));
+%%% use an alternative that focus on the mean noise floor of all antennas
+%%%,  AND keeps the gain3 and noise_floor in dB, not volts
+%%% if using, we need to adjust the M.snrant code below around line 244
 
-%%% method that uses log10 dB scale to establish the noise floor.
-gain3=10*log10(nanmean(gains,3)) + (-40 - 5.8); clear gains;
-% use the mean power in the outer edge to get the noise floor
-noise_floor=nanmean(gain3(end,[1:CONST.imageFOL_user_param end-CONST.imageFOL_user_param:end]));
-
+% % method that uses log10 dB scale to establish the noise floor.
+% gain3=10*log10(nanmean(gains,3)) + (-40 - 5.8); clear gains;
+% % use the mean power in the outer edge to get the noise floor
+% noise_floor=nanmean(gain3(end,[1:CONST.imageFOL_user_param end-CONST.imageFOL_user_param:end]));
 
 
 %%% set coefficients for direction_finding, etc.
-peak_thresh=.5;   %do this in 10*log10(MS) space, making .5 a reasonable threshold?
+peak_thresh=CONST.doa_peak_thresh;   %do this in 10*log10(MS) space, making .5 a reasonable threshold?
 dangles=nanmedian(abs(diff(patt.angles)));
-
 mP=[];
-% %Set the parameters that are specific to the DF method
-% switch CONST.which_df
-%     case 'music'
-%         mP=HEAD.Musicparams123(1:3);
-%     case 'mle'
-%         mP=[0 0 0 ]; %HEAD.MLEparams123(1:3);
-%     case 'music'
-%         mP=[0 0 0 ];  HEAD.M_params123(1:3);
-% end
 
 %%%   loop over all rows of FOregi and compute DOA and MUSIC signal qualities for each.
 %%
@@ -146,14 +122,12 @@ for i=1:CONST.N; Co(i,i)=1;
 end
 
 %do direction finding for each good FOregi
-for i4=1:1:length(FOregi)
-    
+for i4=1:1:length(FOregi)   
     %%% isolate point of interest for this loop
-    bp=FOregi(i4,:);
-    
+    bp=FOregi(i4,:);   
     %%% make covariance function,
     %loop over all antennas to fill out C
-    C=nan.*ones(CONST.N,CONST.N);
+    C=nan.*ones(CONST.N,CONST.N); 
     for ii=1:CONST.N
         eval(['C(ii,ii)=data.a' num2str(ii) num2str(ii)   '(bp(1),bp(2));'])
         for jj=ii+1:CONST.N
@@ -196,8 +170,8 @@ for i4=1:1:length(FOregi)
             figure(20); clf;
             subplot(2,1,1);
             plot(Ns,(real(AIC)),'bo-'); hg; set(gca,'xdir','reverse')
-            plot(Ns,(real(MDL)),'ro-'); hg
-            title([num2str([i4 Ns_f])])
+            plot(Ns,(real(MDL)),'ro-'); hg ; legend('AIC','MDL')
+            title([num2str([i4 Ns_f])])            
         end
         
         
@@ -205,7 +179,7 @@ for i4=1:1:length(FOregi)
         %%%  proceed with the direction finding method.
         if Ns_f>0;
             
-            %%% (4) evaluate the DOA function to assess how many scatterers there are
+            %%%  evaluate the DOA function to assess how many scatterers there are
             %%% steps to id which MS is the correct one
             %%%
             %%%  send the covariance, the APM, and theta, and the max number of signals, to
@@ -215,10 +189,12 @@ for i4=1:1:length(FOregi)
             %%%  idx   is the emitter locations, given the assumed number of emitters present
             %%%  k    is the max number of iterations used
             %%
+           
             switch CONST.which_df
                 %%%%%%%%%%%%% MUSIC  %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
                 case 'music'
                     %%
+     
                     [doa,idx] = HFR_DP_DFmusic_v1(patt.A,Q,Ns_f,CONST.N,peak_thresh);
                     %make this doa 'look' like the rest
                     % music can return a variable number of peaks b/c of the peak
@@ -242,7 +218,7 @@ for i4=1:1:length(FOregi)
             if CONST.goplot(2)==1;
                 subplot(2,1,2);
                 %%% plot this result so far %%%
-                colors='krbgc';
+                colors='krbgcym';
                 for j=1:length(idx);
                     plot(patt.angles,real(10*log10(doa(j,:)')),[colors(j) '.'],'markersize',4); hg;
                     plot(patt.angles(idx(j)),real(10*log10(doa(j,idx(j)))),[colors(j) 'o'],'markersize',10);
@@ -251,7 +227,7 @@ for i4=1:1:length(FOregi)
                 pause
             end
             
-            %%%
+            %%
             %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
             %%% export the results.
             
@@ -264,8 +240,8 @@ for i4=1:1:length(FOregi)
                 M=[];
                 M.Eigen=abs(D);   % we should give all the eigenvalues every time
                 %find mean snr of all antennas
-                %M.snrant=[mean(diag(C)./noise_floor) ];
-                M.snrant=[gain3(bp(1),bp(2))-noise_floor];
+                M.snrant=[mean(diag(C)./noise_floor) ];   %the way to do this if noise_floor is in volts
+               % M.snrant=[gain3(bp(1),bp(2))-noise_floor];  %the way to do this if gain3 and noise_floor is already in log10 as dB
                 M.isaveout=zeros(1,CONST.N-1);
                 M.isaveout(1:Ns_f)=1;
                 
@@ -277,8 +253,8 @@ for i4=1:1:length(FOregi)
                 A1=patt.A(:,idx(1:iii));
                 %    eval(['P' num2str(ii) '=((A1''*A1)^-1)*A1''*(C- D(length(itheta)+1)*Co)*A1*((A1''*A1)^-1);'])  %back out the signal power
                 P=((A1'*A1)^-1)*A1'*(C- D(length(idx)+1)*Co)*A1*((A1'*A1)^-1); %  %back out the signal power
-                %M.power=P(iii,iii);  %straight up signal voltage?
-                M.power=10*log10(abs(P(iii,iii)))+ (-40 - 5.8); %convert to dB
+                M.power=P(iii,iii);  %straight up signal voltage?
+                %M.power=10*log10(abs(P(iii,iii)))+ (-40 - 5.8); %convert to dB
                 M.DOApeak=doa(iii,idx(iii));
                 
                
@@ -342,10 +318,7 @@ for i4=1:1:length(FOregi)
                 %for each iteration of the comparison.
                 
                 %%% after the method is complete export M in the required format
-                %%%% put outgoing data into an array similar to the COS radial metrics, starting
-                %%%% with range (column 6) of COS radial metrics file.
-                % add the rest (lon lat u v flag) after all FOLs are processed.
-                %COS radial metrics  (lon lat u v flag will be added to the front end later
+                %%%% put outgoing data into an array similar to radial metrics, starting
                 % 1 range
                 % 2 bearing
                 % 3 vel

@@ -1,12 +1,11 @@
-function [SpecHead,data,mtime]=lera_time2spectra_v2(incoming_ts_file_dir,incoming_spectra_file_dir,filein,RC,HEAD,CONST)
+function [SpecHead,data,mtime]=lera_time2spectra_v(incoming_ts_file_dir,incoming_spectra_file_dir,filein,RC,HEAD,CONST)
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-%lera_time2spectra_v1.m
+%lera_time2spectra_v.m
 %
 %   loads a lera timeseries file and processes using the PC structure as
-%   well as the information in the radar setup file, held in RC and loaded
-%   from the radar_header file.
-%
+%   well as the information in CONST,HEAD,RC from the processing set up
+%   as well as the radar setup file.
 % 
 %  Variables needed:
 %       base_dir
@@ -17,8 +16,7 @@ function [SpecHead,data,mtime]=lera_time2spectra_v2(incoming_ts_file_dir,incomin
 %           PC.SpeclengthPnts=2048;   %defines the number of points in the spectra
 %
 %
-%   This function outputs a matlab file with the filename:
-%
+%   This function outputs data to be saved in the matlab file with the filename:
 %        CSE_xxx_YYYYyrdhhmm.mat
 %
 %    where xxx is the site name and yrd is the yearday.
@@ -28,26 +26,48 @@ function [SpecHead,data,mtime]=lera_time2spectra_v2(incoming_ts_file_dir,incomin
 %     SpecHead the spectrum/data information
 %     data     the ansemble averaged auto and cross_spectra from all antennas
 %
-%   Note that while the spectra might be estimated using 2048 spectral points
-%   , only the middle 1024 points are kept moving forward to save space.
+%   Note that the actual saving of the file is done in the master script
 %
-%   The output of this file can go right into spectra2radialmetrics steps.
+%   While the spectra might be estimated using, say 2048, spectral points,
+%   only the middle 1024 points are kept moving forward to save space.
+%   This is done as the lera chirp is ~1/3 s pushing the bragg region
+%   towards the center of the Doppler spectrum, and leaving significant
+%   extra space on the outer regions of the spectra that are not required
+%   for further analysis
 %
+%   The output of this function can go right into spectra2radialmetrics steps.
 %
-% .  v2 . implemented for realtime processing
+%   v2 implemented for realtime processing
 %
-%   v3 fixes and better explanations. in use for offline, need to
+%   v3 
+%   fixes and better explanations. in use for offline, need to
 %   transistion.
+%
+%   v4    8/1/2018
+%   moved to more flexible spectral overlapping to allow for overlaps
+%   different from 50%, adjusted fft loop to handle this.
+%   moved SpecHead.segments to just have the starting index of each ensemble
+%   member
+%
+%  v5    9/2018  changes
+%  - changes from the hanning to the Blackman-harris window for improved
+%  noise suppression at the expense of a slightly smeared bragg region
+%  - also implements hitch finding code to see spikes in the chirp data,
+%  and if present, redo the range fft with linear interpolation over hitch
+%  location (can be at a different range in each radar, but fairly constant within
+%  a file)
+%
+%    v6  11/2018 changes to streamline lera processing and comment method
 %
 % Anthony Kirincich
 %   WHOI-PO
 %   akirincich@whoi.edu
-%   06/20/2017
+%   11/20/2018
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %%
 % % %clear
 % % %%
-% % %%%%% set directories %%%%%%%%%%%%%
+% % %%%%% set directories for in script testing %%%%%%%%%%%%%
 % % base_dir='~/Matlab/working/LERA/'
 % 
 % %data_dir
@@ -69,10 +89,27 @@ PC=CONST.PC;
 % PC.SpeclengthPnts=2048;   %defines the number of points in the spectra
 
 PC.spec_crop=PC.SpeclengthPnts*.25+1:PC.SpeclengthPnts*.75; 
-PC.TSunitref=10/(2^17);     %use to transform the AD output from counts to volts as 10V = 2^17 counts or 131072
+
+%use to convert from the A2D counts, shifted by the shift bits into a
+%voltage
+PC.TSunitref=RC.gain/(2^(RC.BIT_LENGTH-RC.SHIFT));    
+
+%PC.TSunitref=10/(2^17);     %use to transform the AD output from counts to volts as 10V = 2^17 counts or 131072
 %                         x(in v)/10v = obs_counts/2^17   or x(in v) =
 %                         10v*obs_counts/2^17, this is true volts into the receiver
 %                         if the receiver is on high gain, max of 10 v
+%%% generalize
+% switch HEAD.SiteName  %site_name
+%     case 'NWTP'
+%         %for MK2 receiver
+%     PC.TSunitref=RC.gain/(2^(23-RC.SHIFT));     %use to transform the AD output from counts to volts as 10V = 2^17 counts or 131072
+%     case 'LPWR'
+%         %for MK3 receiver
+%     PC.TSunitref=RC.gain/(2^(31-RC.SHIFT));     %use to transform the AD output from counts to volts as 10V = 2^17 counts or 131072
+%     case 'HBSR'
+%         %for MK3 receiver
+%     PC.TSunitref=RC.gain/(2^(31-RC.SHIFT));     %use to transform the AD output from counts to volts as 10V = 2^17 counts or 131072
+% end
 
 %%
 
@@ -83,7 +120,7 @@ RCc=RC;
 eval(['cd ' incoming_ts_file_dir]);
 %%% load the file
 load(filein);
-RC=RCc;
+RC=RCc;  %reload the radar_header version of the RC
 
 %%%% extra if loading a wera ts file
 % timechirp=wera; clear wera werac wera1 sdata map data
@@ -110,16 +147,22 @@ SpecHead.RangeResKm=SpecHead.RangeMaxKm*2/SpecHead.SamplesPerChirp;    %the min 
 %%%%      rangemax is better defined as    rangeres*samplesPerChirp/2
 SpecHead.FullRangeKm=(-SpecHead.SamplesPerChirp/2:SpecHead.SamplesPerChirp/2-1).*SpecHead.RangeResKm ;  %array of the ranges (neg and positive) for the range FFT
 
-SpecHead.PC=PC;  %copy processing constants into this header
+SpecHead.PC=PC;  %copy processing constants  into this header
 
 %work to isolate the range cells that we'll move forward
+%just positive range cells:
 irange=find((SpecHead.FullRangeKm)<=SpecHead.PC.MaxRangeKM & SpecHead.FullRangeKm>0);
+%both pos and negative range cells.
 %irange=find(abs(SpecHead.FullRangeKm)<=SpecHead.PC.MaxRangeKM);
+
 SpecHead.RangeKm=SpecHead.FullRangeKm(irange);
 SpecHead.rangecell=1:length(irange);
 
 %establish frequency, period
 SpecHead.Fc=RC.Fc;                %center frequency of radar transmission
+if SpecHead.Fc < 1e6;  %this is not in Hz, assume its in MHz and mult by 1e6
+    SpecHead.Fc=SpecHead.Fc.*1e6;   % now in Hz
+end
 SpecHead.Tr=RC.chirp;              %chirp period s
 SpecHead.fr=1./RC.chirp;            %the chirp rate in Hz
 SpecHead.fDmax=.5*SpecHead.fr;    %max dop frequency resolution, for the spectral estimate itself
@@ -152,28 +195,30 @@ SpecHead.c_vel=SpecHead.doppler_vel-[-SpecHead.v_p*ones(1,(SpecHead.PC.Speclengt
 %%%%%%%%%% move forward and process the TS data to the range and spectral estimates
 %make the range data array
 range_data=zeros(SpecHead.SamplesPerChirp,SpecHead.nchirps,RC.NANT);
-
-%NWTP lera often has a hitch in the chirps at position 60, when this
-%occurs interp through a small gap reduces noise by 10db, When it is not
-%present the interp seems to have little effect. This is a patch for fixing
-%something about the radar itself.
-gap=[57 62];
-igap=[(1:gap(1)-1) (gap(2)+1:SpecHead.SamplesPerChirp)];
- 
 %%% if investigating the position of the chirp max
 %outto_chirpmax=[];
 
-%goplot(2)=1;
+% %lera often has a hitch in the chirps at a fixed position, when this
+% %occurs interp through a small gap reduces noise by 10db, When it is not
+% %present the interp seems to have little effect. 
+% v5 of this script implements a redo of the range fft if a hitch is found
+% and replots the difference.
+%
+%  This is a patch for fixing something about the radar itself.
+dysave=nan.*ones(SpecHead.SamplesPerChirp,file_chirps);  %create variable for saving the mean abs(chirp) to find a hitch
+hitch_factor=4;
+hitch_factor_span=3;
+
+%%% loop over chirps and compute range spectra
 for ichirp=1:file_chirps
     %isolate the i and q parts for this chirp, place into units of volts.
     wc=double(timechirp(:,:,:,ichirp)).*SpecHead.PC.TSunitref;   
     %form the complex variable
     y=double(squeeze(wc(1,:,:))) + sqrt(-1).*double(squeeze(wc(2,:,:))) ;  %combine into a complex #
-    %interp over gap area of known bad data...  
-  %  y(1,:)=0+sqrt(-1).*0;
- %   y=interp1(igap',real(y(igap,:)),1:SpecHead.SamplesPerChirp) + sqrt(-1).*interp1(igap',imag(y(igap,:)),1:SpecHead.SamplesPerChirp) ;
+    dysave(2:end,ichirp)=mean([abs(diff(real(y))) abs(diff(imag(y)))],2);     % get data for hitch finder
     %do fft
-    Y=fft(y.*(hanning(SpecHead.SamplesPerChirp)*ones(1,RC.NANT)));   %do the fft with a hanning window .  %better side lobe suppression.
+%    Y=fft(y.*(hanning(SpecHead.SamplesPerChirp)*ones(1,RC.NANT)));   %do the fft with a hanning window .  %better side lobe suppression.
+    Y=fft(y.*(blackmanharris(SpecHead.SamplesPerChirp)*ones(1,RC.NANT)));   %do the fft with a hanning window .  %better side lobe suppression.
     %shift to put the 0 frequency in the middle of the array
     Y=fftshift(Y,1);  %in agreement with SpecHead.FullRangeKm
     
@@ -188,40 +233,20 @@ if CONST.goplot(2)==1;
     if ichirp==1 | ichirp==file_chirps;  %only plot the first and last
     figure(10); clf;
     subplot(211);  plot(real(y)); hg; plot(imag(y));
-   % plot(real(yy)); hg; plot(imag(yy));
     a=ceil(SpecHead.SamplesPerChirp.*[.2 .5]);
-    %plot(real(y.*hanning(SpecHead.SamplesPerChirp))); hg;   plot(imag(y.*hanning(SpecHead.SamplesPerChirp)));
-    axis([1 SpecHead.SamplesPerChirp  nanmax(nanmax(real(y(a(1):a(2),:))))*[-2 2]])
+    axis([1 SpecHead.SamplesPerChirp  nanmax(nanmax(abs(real(y(a(1):a(2),:)))))*[-3 3]])
     title('Timeseries for this chirp');
     subplot(223);
     plot(SpecHead.FullRangeKm,20.*real(log10(real(Y))),'k'); hg; 
-    axis([[-1 1].*max(SpecHead.FullRangeKm) -80 20])
+    axis([[-1 1].*max(SpecHead.FullRangeKm) -90 20])
     title('I channel range dependent power'); xlabel('km')
     subplot(224)
     plot(SpecHead.FullRangeKm,20.*real(log10(imag(Y))),'r'); hg;
     title('Q channel range dependent power'); xlabel('km')
-    axis([[-1 1].*max(SpecHead.FullRangeKm) -80 20])
-
-    pause(.5)
+    axis([[-1 1].*max(SpecHead.FullRangeKm) -90 20])
+    pause(.05)
     end
-    
-%     figure(11); clf;
-%     subplot(211);  plot(real(y)); hg;
-%    % plot(real(yy)); hg; 
-%     a=ceil(SpecHead.SamplesPerChirp.*[.2 .5]);
-%     %plot(real(y.*hanning(SpecHead.SamplesPerChirp))); hg;   plot(imag(y.*hanning(SpecHead.SamplesPerChirp)));
-%     axis([1 SpecHead.SamplesPerChirp  nanmax(nanmax(real(y(a(1):a(2),:))))*[-2 2]])
-%     title('Timeseries for this chirp');
-%   
-%     subplot(212);  plot(imag(y));   hg;
-%  %   plot(imag(yy)); hg; ;
-%     a=ceil(SpecHead.SamplesPerChirp.*[.2 .5]);
-%     %plot(real(y.*hanning(SpecHead.SamplesPerChirp))); hg;   plot(imag(y.*hanning(SpecHead.SamplesPerChirp)));
-%     axis([1 SpecHead.SamplesPerChirp  nanmax(nanmax(real(y(a(1):a(2),:))))*[-2 2]])
-%     title('Timeseries for this chirp');
-% 
-%  pause(.5)
-
+end
 % %check on the chirp timing
 % rout=abs(real(y))./( ones(length(y),1)*max(abs(real(y))) );
 % iout=abs(imag(y))./( ones(length(y),1)*max(abs(imag(y))) );
@@ -230,7 +255,68 @@ if CONST.goplot(2)==1;
 % j=find(mean(iout,2)==max(mean(iout,2)));
 % outto_chirpmax(ichirp,:)=[i(1) j(1) max(mean(rout,2)) max(mean(iout,2))];
 
+end  %for ichirp
+
+%%
+
+if CONST.gohitch==1
+%%% examine data for hitches:
+y=nanmean(dysave,2);
+ia=floor(SpecHead.SamplesPerChirp*.15):SpecHead.SamplesPerChirp-floor(SpecHead.SamplesPerChirp*.10);
+me=nanmean(y(ia)); ma=nanmax(y(ia));
+
+if CONST.goplot(2)==1; figure(20); clf; plot(y); hg; title('hitch finder'); end
+
+if ma>me.*hitch_factor; % a persistent hitch in the chirp is present.  redo this work with
+
+i=find(y(ia)==ma);
+    gap=ia([i-hitch_factor_span i+hitch_factor_span]);
+    igap=[(1:gap(1)-1) (gap(2)+1:SpecHead.SamplesPerChirp)];
+    comment=sprintf('A hitch between chirp indices %2.0f and %2.0f was interped over',gap); 
+    disp(comment)
+
+%make the range data array..again with the hitch interped
+range_data=zeros(SpecHead.SamplesPerChirp,SpecHead.nchirps,RC.NANT);
+
+%%% loop over chirps and compute range spectra
+for ichirp=1:file_chirps
+    %isolate the i and q parts for this chirp, place into units of volts.
+    wc=double(timechirp(:,:,:,ichirp)).*SpecHead.PC.TSunitref;   
+    %form the complex variable
+    y=double(squeeze(wc(1,:,:))) + sqrt(-1).*double(squeeze(wc(2,:,:))) ;  %combine into a complex #
+    %interp over gap area of known bad data...  
+    y=interp1(igap',real(y(igap,:)),1:SpecHead.SamplesPerChirp) + sqrt(-1).*interp1(igap',imag(y(igap,:)),1:SpecHead.SamplesPerChirp) ;
+    %do fft
+%    Y=fft(y.*(hanning(SpecHead.SamplesPerChirp)*ones(1,RC.NANT)));   %do the fft with a hanning window .  %better side lobe suppression.
+    Y=fft(y.*(blackmanharris(SpecHead.SamplesPerChirp)*ones(1,RC.NANT)));   %do the fft with a hanning window .  %better side lobe suppression.
+    %shift to put the 0 frequency in the middle of the array
+    Y=fftshift(Y,1);  %in agreement with SpecHead.FullRangeKm
+    %%% place this result into new array of 
+    range_data(:,ichirp,:)=Y;
+
+%%%% make a plot of the range result for this chirp 
+if CONST.goplot(2)==1;
+    if ichirp==1 | ichirp==file_chirps;  %only plot the first and last
+    figure(10); clf;
+    subplot(211);  plot(real(y)); hg; plot(imag(y));
+    a=ceil(SpecHead.SamplesPerChirp.*[.2 .5]);
+    axis([1 SpecHead.SamplesPerChirp  nanmax(nanmax(abs(real(y(a(1):a(2),:)))))*[-3 3]])
+    title('Timeseries for this chirp');
+    subplot(223);
+    plot(SpecHead.FullRangeKm,20.*real(log10(real(Y))),'k'); hg; 
+    axis([[-1 1].*max(SpecHead.FullRangeKm) -90 20])
+    title('I channel range dependent power'); xlabel('km')
+    subplot(224)
+    plot(SpecHead.FullRangeKm,20.*real(log10(imag(Y))),'r'); hg;
+    title('Q channel range dependent power'); xlabel('km')
+    axis([[-1 1].*max(SpecHead.FullRangeKm) -90 20])
+    pause(.05)
+    end
 end
+
+end %for ichirp
+end %if hitch is present
+end  %if gohitch
 
 %%% test case for proving fft and fftshift, following matlab docs
 %  
@@ -251,14 +337,12 @@ end
 % plot(fshift,powershift(1,:),fshift,powershift(2,:))
 
 %%%%%%%%
-    
-end %for ichirp
 
 %%% make a plot of the power of the I and Q in all chirps for ant 1
 if CONST.goplot(2)==1;
     figure(11); clf;
-    subplot(211);  pcolor(20.*real(log10(real(range_data(:,:,4))))); shading flat; colorbar; hg;
-    subplot(212);  pcolor(20.*real(log10(imag(range_data(:,:,4))))); shading flat; colorbar;  hg;
+    subplot(211);  pcolor(20.*real(log10(real(range_data(:,:,5))))); shading flat; colorbar; hg;
+    subplot(212);  pcolor(20.*real(log10(imag(range_data(:,:,5))))); shading flat; colorbar;  hg;
 
 %     figure(11); clf;
 %     plot(outto_chirpmax(:,1)); hg;
@@ -271,33 +355,43 @@ end
 %cut range data down to +/- range of interest.
 range_data_cut=range_data(irange,:,:);
 %figure out how many spectra will be averaged together to make the ensemble estimate
-SpecHead.segments=1:SpecHead.PC.SpeclengthPnts*(SpecHead.PC.SpecOverlapPct/100):SpecHead.nchirps;
-SpecHead.nsegs=length(SpecHead.segments)-2;
-%make outgoing variable 
-saveY=nan.*ones(length(irange),SpecHead.PC.SpeclengthPnts,RC.NANT,SpecHead.nsegs);
+%%% for 50% overlap
+%SpecHead.segments=1:SpecHead.PC.SpeclengthPnts*((100-SpecHead.PC.SpecOverlapPct)/100):SpecHead.nchirps;
+%SpecHead.nsegs=length(SpecHead.segments)-2;
 
-    aa=nan*ones(1,8);
+%%% for random overlap
+SpecHead.segments=floor(1:SpecHead.PC.SpeclengthPnts*((100-SpecHead.PC.SpecOverlapPct)/100):SpecHead.nchirps-SpecHead.PC.SpeclengthPnts+1);
+SpecHead.nsegs=length(SpecHead.segments);
+
+
+%%% only proceed if there are enough samples to make one ensemble member
+if SpecHead.nsegs > 1
+
+%make outgoing variable
+saveY=nan.*ones(length(irange),SpecHead.PC.SpeclengthPnts,RC.NANT,SpecHead.nsegs);
+aa=nan*ones(1,8); 
+
 %%% do second FFT for each ant and segment, separately,
 for ii=1:RC.NANT
     for iii=1:SpecHead.nsegs;
-        b=SpecHead.segments(iii):SpecHead.segments(iii+2)-1;
+        b=SpecHead.segments(iii):SpecHead.segments(iii)+SpecHead.PC.SpeclengthPnts-1;   %adjusted v4 for flexibility
         y=range_data_cut(:,b,ii);
         Y=fft(y.*(ones(length(irange),1)*(hanning(SpecHead.PC.SpeclengthPnts)')),[],2);   %do the fft with a hamming window
         Y=fftshift(Y,2);  %shift to put the 0 frequency in the middle.
         saveY(:,:,ii,iii)=Y;
     end
     
-  %%%Make plots of the spectra as they are created
-  if CONST.goplot(2)==1
+  %%Make plots of the spectra as they are created
+ if CONST.goplot(2)==1
     figure(2); clf;
     for i=1:SpecHead.nsegs;
         subplot(SpecHead.nsegs+1,1,i);
-        pcolor(20*log10(abs(squeeze(saveY(:,:,ii,i))))); shading flat; colorbar; hg; caxis([-50 50]); hg
+        pcolor(20*log10(abs(squeeze(saveY(:,:,ii,i))))); shading flat; colorbar; hg; caxis([-100 20]); hg
         plot([1; 1]*SpecHead.iFBragg,SpecHead.rangecell([1 end])'*[1 1],'k')
         title(['Antenna ' num2str(ii) '; Segment ' num2str(i)])
     end
         subplot(SpecHead.nsegs+1,1,SpecHead.nsegs+1);
-        pcolor(20*log10(squeeze(nanmean(abs(saveY(:,:,ii,:)),4)))); shading flat; colorbar; hg; caxis([-50 50]); hg;
+        pcolor(20*log10(squeeze(nanmean(abs(saveY(:,:,ii,:)),4)))); shading flat; colorbar; hg; caxis([-100 20]); hg;
         plot([1; 1]*SpecHead.iFBragg,SpecHead.rangecell([1 end])'*[1 1],'k')
         title(['Antenna ' num2str(ii) '; average '])
 
@@ -305,8 +399,8 @@ for ii=1:RC.NANT
         set(gca,'xtick',i,'xticklabel',num2str(round(SpecHead.c_vel(i))'))
         
         aa(ii)=nanmean(nanmean(20*log10(squeeze(nanmean(abs(saveY(:,:,ii,:)),4)))));
-    pause(.5)
-  end  %if goplot
+  pause(.5)
+ end  %if goplot
 end
 
 %%
@@ -335,17 +429,12 @@ for ii=1:RC.NANT;
     end
 end
 
-   
-%%
-%     
-% %%%% get the output filename, based on the filein %%%%
-% i=find(filein=='_');
-% fileout=['CSE_' RC.SiteName '_' filein(i(2)+1:end)];
-% 
-% %%%%% finally, save this data for direction finding.
-% save(fileout,'RC','SpecHead','data','mtime')
 
-%%
+else;  data=[];  
+    disp('this file is short on chirps, returning and empty array for data')
+end  %SpecHead.nsegs > 1
+
+
 
 
 return

@@ -35,18 +35,29 @@ outgoing_pics_file_dir=[base_dir '/Site_' site_name '_pics'];
 eval(['cd ' incoming_config_file_dir])
 %load site header
 config_dir=[incoming_config_file_dir '/'];
-radar_header %radar_header is used here as well as on the site computer to load this info for the compression step
+
+%radar_header is used here as well as on the site computer to load this info for the compression step
 % thus don't change it now.
+if end_time<datenum(2018,5,2);   % Use the old radar_header for BW=100 for NWTP only
+    radar_header_to05022018
+    disp('using an old radar_header file! is this your intent?')
+else  %use the new one.
+    radar_header  %new from 5/1/2018    
+end
 
 %load site pattern file
 %lera_pattern_work_07142017
 %patt=lera_pattern_work_v1(site_name,CONST.which_patt);
 
-%%% use new version of pattern information with corrected mapping.
-patt=lera_pattern_work_v2(site_name,CONST);
+%%% use new version of pattern information with corrected mapping.  
+%patt=lera_pattern_work_v2(site_name,CONST);
 
 %patt=lera_pattern_work_v3(site_name,CONST);   %%% do not use v3,  not any
 %different from v2 and has some mistakes in the phi, psi formulation.
+
+%%% use new version of pattern information with corrected mapping.
+patt=lera_pattern_work_v4(site_name,CONST);  %includes ideal for both lpwr and nwtp
+%%%% use with all new data 
 
 %now go back to the working directory
 eval(['cd ' working_dir])
@@ -67,7 +78,7 @@ HEAD.Musicparams123=[40 20 2];   %from LPWR
 HEAD.ProcessingSteps=[];
 HEAD.Bearing=patt.Array_bearing;
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-
+%%
 
 % %load header file
 % s=[incoming_config_file_dir '/RadialConfigs/Header.txt'];
@@ -98,10 +109,14 @@ temp_angles=patt.angles; temp_A=patt.A;
 
 %chop pattern to be only the offshore components wrapping to land,
 % for nwt, 'offshore' is a bearing of 190ish
-i=find(patt.angles>90 & patt.angles<276);
+% NWTP
+%i=find(patt.angles>90 & patt.angles<276);
+%LPWR
+%i=find(patt.angles>90 & patt.angles<270);
+%use CONST.pattern_ends=[ ] here
+i=find(patt.angles>CONST.pattern_ends(1) & patt.angles<CONST.pattern_ends(2));
 patt.angles=patt.angles(i);
 patt.A=patt.A(:,i);
-
 
 
 %%
@@ -174,12 +189,12 @@ patt.Bear_ends=Bear_ends(:,i);
 patt.BearT=BearT(i);
 patt.BearT_ends=BearT_ends(:,i);
 
-
-%restore full pattern ....
-patt.angles=temp_angles; patt.A=temp_A;
+ %%% restore full pattern ... if you wish to output the RM using the full
+ %%% pattern.
+  patt.angles=temp_angles; patt.A=temp_A;
 
 %%% make a plot of the pattern, if wanted
-if CONST.goplot(2)==1
+%if CONST.goplot(2)==1
     figure(2); clf
 %    p=polar(true2math(patt.angles)*pi./180,abs(patt.a1),'r'); hg
     p=polar(true2math(patt.angles)*pi./180,abs(patt.A(1,:)),'r'); hg
@@ -190,7 +205,20 @@ if CONST.goplot(2)==1
      title([patt.Site_name ' ' CONST.which_patt ' pattern (converted from DegT to math)']);
     %%% add the azimuths of the radave product, for show
     p=polar(Bear*pi./180,ones(size(Bear)),'kx');
-end
+    
+    figure(3); clf;
+    for iii=1:CONST.N
+        subplot(2,4,iii)
+        plot(patt.angles,real(patt.A(iii,:)),'b.'); hg; axis([0 360 -1.5 1.5])
+        plot(patt.angles,imag(patt.A(iii,:)),'r.'); hg;
+%         if strcmp(CONST.which_patt,'meas')==1;
+%              plot(patt.angles,real(patt.A_ideal(iii,:)),'g.'); hg; axis([0 360 -1.5 1.5])
+%             plot(patt.angles,imag(patt.A_ideal(iii,:)),'m.'); hg;
+%         end
+     end
+    
+    
+%end
 
 %%
 
@@ -208,6 +236,8 @@ for i=1:length(f)
 %   fdates(i)=datenum(2000+str2num(aa(j(2)+1:j(2)+2)),str2num(aa(j(3)+1:j(3)+2)),str2num(aa(j(4)+1:j(4)+2)),str2num(aa(j(5)+1:j(5)+2)),str2num(aa(j(5)+3:j(5)+4)),0);
     fdates(i)=datenum(yyyy,1,0) + yday + hh/24 + mm/(24*60);
 end
+
+
 
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%

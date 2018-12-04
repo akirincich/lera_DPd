@@ -62,11 +62,20 @@ function [R, HEAD]=HFR_DP_lera_music(data,FOregi,HEAD,SpecHead,patt,CONST)
 % Versions:
 % . created 8/2017
 %
+%   edited 4/2018 
+%    fixed max of single angle solution to be single peak,
+%   i.e. peak finding is not done on the single angle case and this case is
+%   always valid.
+%
+%
 %    Anthony Kirincich
 %    WHOI-PO
 %    akirincich@whoi.edu
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %%
+%MSS_save=[];
+%asdfas
+
 %start with arrays for all possible angle solutions R1-RNmax
 % condense and combine after finished
 for ii=1:CONST.Nmax
@@ -93,7 +102,10 @@ gain3=gains(:,:,i(1)); clear gains;
 
 
 mP=HEAD.Musicparams123(1:3);
-peak_thresh=.5;   %do this in 10*log10(MS) space, making .5 a reasonable threshold?
+%peak_thresh=.5;   %do this in 10*log10(MS) space, making .5 a reasonable threshold?
+%peak_thresh=.25;   %do this in 10*log10(MS) space, making .5 a reasonable threshold?
+%peak_thresh=.05;   %do this in 10*log10(MS) space, making .5 a reasonable threshold?
+peak_thresh=CONST.doa_peak_thresh;
 dangles=nanmedian(abs(diff(patt.angles)));
 
  
@@ -152,15 +164,18 @@ if isempty(find(isnan(C(:))==1))==1  %fix to ensure that data in C is good
     %%% back,land side of the pattern as arranged around the antenna array
     ipks=cell(CONST.Nmax,1);
     igood=nan*ones(1,CONST.Nmax);
-    for j=1:CONST.Nmax;
-%        [pks,dzdt]=pksfinder((MS(j,:)),peak_thresh);
-        [pks,dzdt]=pksfinder(10*log10(MS(j,:)),peak_thresh);
+    %assume that max of 1 emitter solution is the only peak
+    ipks(1)={find(MS(1,:)==max(MS(1,:)))}; igood(1)=1; % is the only peak, 
+    %thus single angle solution is always valid.
+    for j=2:CONST.Nmax;
+%        [pks,dzdt]=pksfinder((MS(j,:)),peak_thresh*10);
+       [pks,dzdt]=pksfinder(10*log10(MS(j,:)),peak_thresh);
         %focus on the upper, isolated peaks
-        ipks(j)={find(diff(dzdt)==-2)+1}  ;
+        ipks(j)={find(diff(dzdt)==-2)+1};        
         %%%  which MS have the correct number of peaks?
         if length(ipks{j})==j; igood(j)=1; end
-    end
-       
+    end     
+    
     if CONST.goplot(2)==1
         %%% plot this result so far %%%
         figure(4); clf;  colors='krbgc';
@@ -175,6 +190,8 @@ if isempty(find(isnan(C(:))==1))==1  %fix to ensure that data in C is good
                 plot(patt.angles,10*log10(MS(j,:)'),[colors(j),'.'],'markersize',12);
             end
         end
+        plot(patt.angles,5*ones(size(patt.angles)),'k')
+        axis([0 360 0 25])
         title(num2str(bp))
             pause(.2)
      end
@@ -193,6 +210,8 @@ isave=find(igood==1);
 pks=ipks(isave);
 mMS=MS(isave,:);
 
+%MSS_save=[MSS_save; MS];
+
     %%%%%% continue to calculate power, and output variables %%%%
     %%%% in schmidt notation %%%
     %  C is the covariance matrix
@@ -208,10 +227,14 @@ for ii=1:length(isave)
     %use found peak directions to calculate A and P (in schmidt) or S (in lipa et al)
     itheta=pks{ii}';
 %     %sort itheta by the DOA magnitude
-%     [s,i]=sort(mMS(ii,itheta),'descend'); 
-%     itheta=itheta(i);
+     [s,i]=sort(mMS(ii,itheta),'descend'); 
+     itheta=itheta(i);
     A1=patt.A(:,itheta);    
     eval(['P' num2str(ii) '=((A1''*A1)^-1)*A1''*(C- D(isave(end)+1)*Co)*A1*((A1''*A1)^-1);'])  %back out the signal power
+%put the reordered itheta back into the pks data base...so that order of
+%pks at the end matches the doa mag.
+pks{ii}=itheta;
+
 end
 
 
@@ -231,36 +254,43 @@ end
 
  %%%%%%%%%%%%%%%%
 if length(isave)>1;  %2+ matches, compare like seasonde does
-         
-%     %%% apply seasonde parameters to steer music to solution, returns
-%     %%% decision and criteria values.  A value of 1 means passing that duel
-%     %%% angle solution test
-%     M.param=[abs(D(isave(1)))./abs(D(isave(2))) 0 0]; 
-%     M.crit=[0 0 0];
-%     %criteria 1
-%     if M.param(1) < mP(1);    M.crit(1)=1;  end
-%     %criteria 2 and 3
-%     if length(P2)==2
-%         d=sort(abs(diag(P2)),'descend');
-%         M.param(2:3)=[d(1)/d(2) abs(P2(1,1)*P2(2,2))/abs(P2(1,2)*P2(2,1))];
-%         if M.param(2) < mP(2);        M.crit(2)=1;    end
-%         if M.param(3) > mP(3);        M.crit(3)=1;    end
-%     else; 
-%         dasfasas; %as i don't yet know how to handle something different
-%     end
-%    
-%     
-%     %choose the solution, keep this solution and output the required information
-%     if (7-(M.crit*[1 2 4]'))==0; jj=2;   %use the duel or higher angle solution, follow the DF_flag way of doing this
-%     else; jj=1; %use the single or lower angle solution.
-%     end
-%     itheta=pks{jj}';
-%     
-% %%%%%%%%%%%%%%%%    
-% elseif length(isave)>2;  %more than 2 matches, what to do?
+    
+% %     %%% apply seasonde parameters to steer music to solution, returns
+% %     %%% decision and criteria values.  A value of 1 means passing that duel
+% %     %%% angle solution test
+% %     M.param=[abs(D(isave(1)))./abs(D(isave(2))) 0 0]; 
+% %     M.crit=[0 0 0];
+% %     %criteria 1
+% %     if M.param(1) < mP(1);    M.crit(1)=1;  end
+% %     %criteria 2 and 3
+% %     if length(P2)==2
+% %         d=sort(abs(diag(P2)),'descend');
+% %         M.param(2:3)=[d(1)/d(2) abs(P2(1,1)*P2(2,2))/abs(P2(1,2)*P2(2,1))];
+% %         if M.param(2) < mP(2);        M.crit(2)=1;    end
+% %         if M.param(3) > mP(3);        M.crit(3)=1;    end
+% %     else; 
+% %         dasfasas; %as i don't yet know how to handle something different
+% %     end
+% %    
+% %     
+% %     %choose the solution, keep this solution and output the required information
+% %     if (7-(M.crit*[1 2 4]'))==0; jj=2;   %use the duel or higher angle solution, follow the DF_flag way of doing this
+% %     else; jj=1; %use the single or lower angle solution.
+% %     end
+% %     itheta=pks{jj}';
+% %     
+% % %%%%%%%%%%%%%%%%    
+% % elseif length(isave)>2;  %more than 2 matches, what to do?
+% 
+%     %revise flag for multiple angle solutions
+     M.DF_flag=0; 
+              
+if strcmp(CONST.which_Ns_meth,'music_highest')==1
+    
+    %temporarily pick the highest solution that has the right num peaks
+    jj=length(isave);
 
-    %revise flag for multiple angle solutions
-    M.DF_flag=0; 
+elseif strcmp(CONST.which_Ns_meth,'music_param')==1
     
 %compare the first to the second and then the winner to the third, etc.
 for ii=1:length(isave)-1
@@ -281,9 +311,13 @@ for ii=1:length(isave)-1
     M.DF_flag=M.DF_flag+(7-(M.crit*[1 2 4]')).*10^(ii-1);
     if (7-(M.crit*[1 2 4]'))==0; jj=ii+1;   %use the duel or higher angle solution,
         % follow the DF_flag way of doing this
-    else; jj=1; %use the single or lower angle solution.
+   % else; jj=1; %use the single or lower angle solution.  %don't need this
+   % line 4/22/2018 and it might cause more 1st solutions to be picked when
+   % there are 3 viable
     end
 end  %loop over pairs of solutions in order.
+
+end  % if strcmp
 
 end  %if length (isave) greater than 1.
 
@@ -378,7 +412,7 @@ eval(['R' num2str(iii) '(i4,:)=r;'])
 %  solution is given in the line of data.
 %%%%%%%% end export data section %%%%%%%%%
 
-    if CONST.goplot(2)==1 & sum(M.isaveout)>2;   M
+    if CONST.goplot(2)==1 & sum(M.isaveout)>1;   M
         pause
     end
 
@@ -392,7 +426,9 @@ end  %for i4 loop over all FOregi
 for ii=1:CONST.Nmax
   eval(['i' num2str(ii) '=find(isnan(R' num2str(ii) '(:,1))==0);'])
 end
-if CONST.Nmax==4
+if CONST.Nmax==3
+R=[R1(i1,:); R2(i2,:); R3(i3,:)];
+elseif CONST.Nmax==4
 R=[R1(i1,:); R2(i2,:); R3(i3,:); R4(i4,:)];
 elseif CONST.Nmax==5
 R=[R1(i1,:); R2(i2,:); R3(i3,:); R4(i4,:); R5(i5,:)];
