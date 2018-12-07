@@ -46,9 +46,9 @@ ikeep=find(isnan(Rclean.RadComp(:,PROC_CONST.iwhich_ave))==0);
 
 % %%%%%%%% setup proper outputfile name  and directory %%%%%%%%%%%
 %make proper file name 
-if strcmp(CONST.which_patt,'meas')==1
+if strcmp(CONST.which_patt,'Measured')==1
     f_type='RDLm';
-elseif strcmp(CONST.which_patt,'ideal')==1
+elseif strcmp(CONST.which_patt,'Ideal')==1
     f_type='RDLi';
 end
 %set proper time stamp    
@@ -73,7 +73,7 @@ fprintf(fid,'%%TimeStamp: %s\n',tt);
 fprintf(fid,'%%TimeZone: "UTC" +0 0\n');  %it should always be UTC.  (GMT has DST)
 fprintf(fid,'%%TimeCoverage: %2.4f Minutes\n',SpecHead.nchirps*SpecHead.Tr/60);
 fprintf(fid,'%%Origin: %3.7f %3.7f\n', CONST.Site_loc);
-fprintf(fid,'%%GreatCircle: "WGS84" 6378137.000  298.257223562997''\n');
+fprintf(fid,'%%GreatCircle: "WGS84" 6378137.000  298.257223562997\n');
 fprintf(fid,'%%GeodVersion: "CGEO" 1.57  2009 03 10\n');
 fprintf(fid,'%%LLUVTrustData: all %%%% all lluv xyuv rbvd\n');
 
@@ -96,7 +96,7 @@ fprintf(fid,'%%TxAntennaBearing: %3.1f True\n',RC.Tx_bearing);  %new to lera
 fprintf(fid,'%%ReferenceBearing: 0 True\n');
 fprintf(fid,'%%AngularResolution: %1.0f Deg\n',median(diff(patt.Bear)));
 fprintf(fid,'%%SpatialResolution: %1.0f Deg\n',median(diff(patt.Bear)));
-fprintf(fid,'%%patternType: %s\n',patt.Pattern_type);
+fprintf(fid,'%%PatternType: %s\n',patt.Pattern_type);
 
 tt=datestr(patt.date,31); i=find(tt=='-' | tt==':'); tt(i)=' ';
 fprintf(fid,'%%PatternDate: %s\n',tt);

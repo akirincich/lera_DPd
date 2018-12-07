@@ -210,13 +210,17 @@ for i=1:length(f)
     fnames(i)={f(i).name};
     aa=char(fnames(i));
 %%% for the wera file structure
-%    j=find(aa=='_');
-%    yyyy=str2num(aa(j(2)+1:j(2)+4)); yday=str2num(aa(j(2)+5:j(2)+7)); hh=str2num(aa(j(2)+8:j(2)+9)); mm=str2num(aa(j(2)+10:j(2)+11));
-%%% for the lera filename structure
+if strcmp(RC.radar_type,'MK2')==1
+    j=find(aa=='_');
+    yyyy=str2num(aa(j(2)+1:j(2)+4)); yday=str2num(aa(j(2)+5:j(2)+7)); hh=str2num(aa(j(2)+8:j(2)+9)); mm=str2num(aa(j(2)+10:j(2)+11));
+else
+    %%% for the lera filename structure
     yyyy=str2num(aa(1:4)); yday=str2num(aa(5:7)); hh=str2num(aa(8:9)); mm=str2num(aa(10:11));
     %year is between 2 and 3, month 3 and 4, day 4 and 5, time 5 and 6
 %   fdates(i)=datenum(2000+str2num(aa(j(2)+1:j(2)+2)),str2num(aa(j(3)+1:j(3)+2)),str2num(aa(j(4)+1:j(4)+2)),str2num(aa(j(5)+1:j(5)+2)),str2num(aa(j(5)+3:j(5)+4)),0);
-    fdates(i)=datenum(yyyy,1,0) + yday + hh/24 + mm/(24*60);
+end
+fdates(i)=datenum(yyyy,1,0) + yday + hh/24 + mm/(24*60);
+
 end
 
 

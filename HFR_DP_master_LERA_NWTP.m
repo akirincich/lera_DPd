@@ -43,9 +43,9 @@ clear
 CONST=[];
 
 %%% the site name to process
-CONST.site_name='LPWR';
-CONST.Site_loc = [41+20.904/60 -(70+38.41/60)];
-CONST.Site_bounds=[90 90+180];
+CONST.site_name='NWTP';
+CONST.Site_loc = [41+14/60+30.96/3600 -(70+6/60+24.85/3600) ];
+CONST.Site_bounds=[120 120+180];
 
 %%% set the common constants for the HFR array this site is a part of:
 ARRAY=[];
@@ -144,8 +144,8 @@ CONST.radave_type='regular';    %follows arthmetic averaging of the radials
 %  and power-weighted spatial means for rad ave
 
 %%% which type of antenna manifold will be used
-CONST.which_patt='ideal';
-%CONST.which_patt='meas';
+CONST.which_patt='Ideal';
+%CONST.which_patt='Measured';
 
 %%% which type of direction finding will be used
 CONST.which_df='music';
@@ -197,7 +197,7 @@ CONST.files_to_process_method=1;
 %CONST.files_to_process_method=2;
 
 %%% set the time frame to examine, only used by method 1
-start_time=datenum(2018,9,29,0,0,0);
+start_time=datenum(2018,9,1,0,0,0);
 end_time=datenum(2018,11,1,0,0,0);
 CONST.files_to_process_dates=[start_time end_time];
 

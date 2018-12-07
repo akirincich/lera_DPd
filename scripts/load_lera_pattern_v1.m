@@ -82,14 +82,14 @@ function patt=load_lera_pattern_v(CONST,RC);
 % akirincich@whoi.edu
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
-if strcmp(CONST.which_patt,'ideal')==1
+if strcmp(CONST.which_patt,'Ideal')==1
 
 %%%%%%% set up outgoing variable
 patt=[];
 patt.Site_name=CONST.site_name;
 %%% pull out the date of the pattern calculation.
 patt.date=date;
-patt.Pattern_type='ideal';
+patt.Pattern_type=CONST.which_patt;
     
 %%% since each radar can have the rx antennas orientated in slightly
 %%% different configurations, call the radar_pattern.m file to fill in the
@@ -118,7 +118,7 @@ patt.sense=sense;
 
 %%
 
-elseif strcmp(CONST.which_patt,'meas')==1
+elseif strcmp(CONST.which_patt,'Measured')==1
     %if there is a MeasPatt file in the *_config directory, find it and
     %load it. 
     %if there are multiple MeasPatt files in the directory, load the most
