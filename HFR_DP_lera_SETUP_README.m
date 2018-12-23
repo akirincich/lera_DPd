@@ -6,23 +6,42 @@
 %  This package contains the master programs to process data from MK-II 
 %  or MK-III LERA-type HF Radar systems. 
 %  
-%  The package specifically requires data from the decimated timeseries 
-%  produced by: 
-%        dtacq2mat_compress.m 
+%  The package requires data from the decimated timeseries produced by: 
+%
+%        dtacq2mat_compress.m   or equivalent
+%
 %  on the site computer that collects the timeseries data.  Both the site
 %  computer and this offline processing must be coordinated with the same
-%  radar setup files. 
+%  radar setup files:
 %
-%  This README file describes:
-%  (1) what HFR_DP is, 
-%  (2) what is needed to run HFR_DP, and
-%  (3) what HFR_DP is not.
+%       radar_header.m
+%       dds_prog.out.DD-MON-YYYY.mat   or  radcelf_prog_DD-MON-YYYY.mat
 %
-% This package distributed as is, with no additional warranties, as an open
-% source community resource to enable HFR methodological development, 
+%  that describe the sampling characteristics of the radar.
 %
-% Similar to HFR_Progs, no part of this distrubution can be used for 
-% commerical gain.
+%  Within the package, the m-file:
+%
+%     HFR_DP_master_LERA_XXXX.m     
+%
+%  where the XXXX denotes the 4-letter radar site code serves as the master
+%  script controlling the setup, loading, and processing of the timeseries 
+%  data to range and doppler spectra estimates, radial metrics, and radial 
+%  average output.
+%
+%   After reading this readme file, start with the master script to setup 
+%  and control your (re)processing.
+%
+%  This package distributed as is, with no additional warranties, as an open
+%  source community resource to enable HFR methodological development, 
+%
+%  Similar to HFR_Progs, no part of this distrubution can be used for 
+%  commerical gain.
+
+%  A series of test master files are included in this release for radar
+%  sites LPWR and NWTP.  Raw data for these sites can be found at:
+%
+%  https://github.com/akirincich/lera_DP_testdata.git
+%
 %
 % v1        December 2018
 %
@@ -30,6 +49,13 @@
 % Woods Hole Oceanographic Institution
 % akirincich@whoi.edu
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%  This README file describes:
+%  (1) what HFR_DP is, 
+%  (2) what is needed to run HFR_DP, and
+%  (3) what HFR_DP is not.
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %%% What HFR_DP_LERA does                                 %%%
@@ -50,11 +76,11 @@
 %  a Hybrid Direction Finding Approach for Flexible Antenna Arrays" 
 %  JOAT, (submitted)
 %
-%  This package uses direction finding, or hybrid methods as the method to 
-%  determine the emitter or source locations.
+%  This package uses direction finding methods to determine the emitter 
+%   or source locations.
 %
 %  This package allows for a variety of processing choices to be used and 
-%  and flexible antenna arrays both in terms of number of antennas and in their 
+%  variable antenna arrays both in terms of number of antennas and in their 
 %  arrangement.  The program uses or allows:
 %
 %  -Image-based First Order Limits (Kirincich, 2017)
@@ -65,8 +91,8 @@
 %  - Radial metrics output (Kirincich et al 2012; de Paola et al 2015;
 %     Haynes et al 2017)
 %
-%  HFR_DP_LERA performs NO temporal averaging.  Thus, the end result 
-%  is equivalent to COS-processed 'Radial Short' files.
+%  HFR_DP_LERA performs NO temporal averaging of the Radial estimates.  Thus, 
+%  the end result is equivalent to COS-processed 'Radial Short' files.
 %
 %  There numerous types of output products available.  All are available for 
 %  each individual spectral estimate submitted for processsing.  Outputs
@@ -96,15 +122,16 @@
 %  HFR_DP requires the following programs to be loaded and operational 
 %  on the target machine:
 %
-%
-%  (1) A MAC or LINUX would likely work as well.
+%  (1) A MAC or LINUX machine.
 %
 %  (2) MATLAB (tested on post-2013 releases only)
 %
-%  (3) The HFR_Progs and M_map packages, available at ROWG WIKI or github
-%      site  (must be available within your path)
+%  (3) The HFR_Progs and M_map packages:
+%       find the HFR_Progs at       https://github.com/rowg/hfrprogs.git
+%       and the m_map package at    https://www.eoas.ubc.ca/~rich/map.html
+%       these packages must be installed and in your path
 %
-%  (4) The Matlab image processing toolbox is required to run ImageFOLs. 
+%  (4) The Matlab Image Processing Toolbox is required to run ImageFOLs. 
 %
 %  (5) A subdirectory file structure for each site_name=XXXX is required, and 
 %      must be formulated as such (where ~ denotes some base directory):
@@ -118,13 +145,13 @@
 %                               %  will go...suitable for transmission to the national archive
 %      ~/SITE_XXXX_pics         %where all saved jpg images will go 
 %
-%      The user can use the function: 
+%      A function: HFR_DP_LERA_createfilestructure_v1.m embedded in the 
+%      HFR_DP_master_LERA_XXXX.m file will create those folders which you've 
+%      not yet setup.  However, to run master script to process data, at
+%      minium, the SITE_XXXX_ts and SITE_XXXX_config folders should be present 
+%      and contain data.
 %
-%     [site_name]=HFR_DP_LERA_createfilestructure_v1(site_name,base_dir);
 %
-%     to create the directory structure in the given data directory
-%
-
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %%% What HFR_DP_LERA doesn't do                      %%%%
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -159,8 +186,17 @@
 %        you intend to reprocess, or download the test data sets also
 %        distributed by Kirincich.
 %
-%    (3) Edit or resave HFR_DR_master_LERA_SITE.m with the information specific
-%        to your SITE (i.e. LPWR), directories, and processing choices
+%    (3) Open, Edit, and Resave:        HFR_DR_master_LERA_XXXX.m 
+%        with the information specific to your SITE
+%         (i.e. LPWR), directories, and processing choices.
 %   
 %    (4) Iterate as you need.
 %
+%    (5) a series of test master files are included in this release for radar
+%        sites LPWR and NWTP.  Raw data for these sites can be found at:
+%
+%        https://github.com/akirincich/lera_DP_testdata.git
+%
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+% END OF README

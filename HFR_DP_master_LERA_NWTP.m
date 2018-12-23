@@ -73,17 +73,20 @@ ARRAY.max_lat=(41+30/60);
 %%% What is the working directory where the HFR_DP files are located
 working_dir='/Users/anthony/Matlab/working/lera/lera_DPd';
 
-%%% Where are the scripts
+%%% Where are the scripts, this is hard coded to be within the working directory
 scripts_dir=[working_dir '/scripts/'];
 
 %%% Where are the data  (see HFR_DP_SETUP_README.m for instructions
-base_dir='/Users/anthony/Data/LERA_process';
+base_dir='/Users/anthony/Matlab/working/lera/lera_DP_testdata';
+%base_dir='/Users/anthony/Data/LERA_process';
 %base_dir='/Volumes/data/RadialSites';
 
-%%% Where do the DP logs go
+%%% Where do the DP logs go, if they are enabled...
 log_dir=['/Users/anthony/Matlab/working/LOGS'];
 %log_dir=['/Volumes/data/LOGS'];
 
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%%%% add needed paths
 eval(['addpath ' scripts_dir]);
 eval(['addpath ' working_dir]);
 %%% move to inital base directory
@@ -193,25 +196,27 @@ CONST.goprint=[0 0];
 
 %%% Method 1: choose files based on the file time
 CONST.files_to_process_method=1;
-%%% Method 2: compare css files to RM files, and process new files
-%CONST.files_to_process_method=2;
-
+%%% if using this method, need to set the time bounds
 %%% set the time frame to examine, only used by method 1
 start_time=datenum(2018,9,1,0,0,0);
 end_time=datenum(2018,11,1,0,0,0);
 CONST.files_to_process_dates=[start_time end_time];
 
+%%% Method 2: compare css files to RM files, and process new files
+%CONST.files_to_process_method=2;
+
 
 %%%%%%%%%%% end radial processing setup %%%%%%%%%%
 %%
-
-
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 % running the processing scripts
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+%%% go and create those data folders that aren't already available
+[site_name]=HFR_DP_LERA_createfilestructure_v1(CONST.site_name,base_dir);
 
 % %%% setup logfile name for diary of the processing
 % %%% this can be helpful if running in realtime

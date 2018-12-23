@@ -142,5 +142,7 @@ else
     
     load(patt_fn)
 end
+else;  disp('for some reason, neither Measured nor Ideal was given, ERROR')
+    asdfasdfasdfasdf;
 end %strcmp
 
