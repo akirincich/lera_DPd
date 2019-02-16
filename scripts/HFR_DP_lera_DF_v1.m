@@ -301,7 +301,7 @@ for i4=1:1:length(FOregi)
                 if CONST.goplot(2)==1 %& sum(M.isaveout)>2;   M
                     M
                 %      figure(4); clf; plot(l); hg; plot(r);
-                    pause
+                 %   pause
                 end
                 
                 % %    M.crit=[nan nan nan];

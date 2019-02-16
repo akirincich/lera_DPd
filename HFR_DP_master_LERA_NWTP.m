@@ -46,6 +46,7 @@ CONST=[];
 CONST.site_name='NWTP';
 CONST.Site_loc = [41+14/60+30.96/3600 -(70+6/60+24.85/3600) ];
 CONST.Site_bounds=[120 120+180];
+%CONST.Site_bounds=[1 359];
 
 %%% set the common constants for the HFR array this site is a part of:
 ARRAY=[];
@@ -175,10 +176,10 @@ CONST.gohitch=1;    %find and remove a consistent 'hitch' in the chirps
 CONST.PC=[];
 CONST.PC.MaxRangeKM=100;        % the maximum ranges, in distance to be kept in spectra, from >0 to Max
 %CONST.PC.SpecOverlapPct=50;     %for WOSA, style increased ensembles into CSE
+%CONST.PC.SpeclengthPnts=1024;   %defines the number of points in the spectra
 
 CONST.PC.SpeclengthPnts=2048;   %defines the number of points in the spectra
 CONST.PC.SpecOverlapPct=78;     %for WOSA, style increased ensembles into CSE
-%CONST.PC.SpeclengthPnts=1024;   %defines the number of points in the spectra
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %%% set plotting and printing switches
@@ -186,7 +187,7 @@ CONST.PC.SpecOverlapPct=78;     %for WOSA, style increased ensembles into CSE
 CONST.goplot=[1 0];   %where:
 %  switch 1 controls the final plots of radial results, etc.  (1=plot, 0=do not plot)
 %  switch 2 controls the intermediary plots within functions  (1=plot, 0=do not plot)
-CONST.goprint=[0 0];
+CONST.goprint=[1 0];
 %  switch 1 prints the final plots of radial results, etc.  (1=print, 0=do not print)
 %  switch 2 prints the intermediary plots within functions  (1=print, 0=do not print)
 
@@ -198,8 +199,10 @@ CONST.goprint=[0 0];
 CONST.files_to_process_method=1;
 %%% if using this method, need to set the time bounds
 %%% set the time frame to examine, only used by method 1
-start_time=datenum(2018,9,1,0,0,0);
-end_time=datenum(2018,11,1,0,0,0);
+%start_time=datenum(2018,9,1,0,0,0);
+%end_time=datenum(2018,9,3,0,0,0);
+start_time=datenum(2018,5,23,17,0,0);
+end_time=datenum(2019,5,24,0,0,0);
 CONST.files_to_process_dates=[start_time end_time];
 
 %%% Method 2: compare css files to RM files, and process new files
@@ -227,7 +230,7 @@ CONST.files_to_process_dates=[start_time end_time];
 %%% for this site, prepare for processing
 %%% sets up processing directories, loads site info and cal, and
 %%% identifies files that need processing
-HFR_DP_lera_ts2radial_prepwork_v4
+HFR_DP_lera_ts2radial_prepwork_v5
 
 
 %  %%% limit the number of files  on in any 1 pass of this processing.
@@ -238,18 +241,23 @@ HFR_DP_lera_ts2radial_prepwork_v4
 
 %%
 %%% now loop overeach file in fnames to process data
-for jjj=1:1; %:length(fnames)
+for jjj=1:length(fnames)
     
     %%% display the file to be processed
     filein=fnames{jjj}
     
+%     %%%% for cals, stop here and use:
+%     lera_time2spectra_forcal_v1
+%     
+%     return
+     
     %%
     disp(filein)
     %%%% start processing steps list now that HEAD has been established.
     HEAD.ProcessingSteps={mfilename};
     %%% load the ts data for this file and make the ensemble-averaged spectra
     [SpecHead,data,mtime]=lera_time2spectra_v6(incoming_ts_file_dir,incoming_spectra_file_dir,filein,RC,HEAD,CONST);
-    
+   
     %%% save the spectra file
     %%%% get the output filename, based on the filein %%%%
     i=find(filein=='_');
@@ -458,7 +466,7 @@ end  % end jjj over fnames files
 
 toc
 diary off;
-clear all; close all;
+%clear all; close all;
 
 %%
 return

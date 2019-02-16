@@ -43,13 +43,14 @@ clear
 CONST=[];
 
 %%% the site name to process
-CONST.site_name='XXXX';
+CONST.site_name='LPWR';
 CONST.Site_loc = [41+20.904/60 -(70+38.41/60)];
 CONST.Site_bounds=[90 90+180];
+%CONST.Site_bounds=[1 360];  %force full pattern
 
 %%% set the common constants for the HFR array this site is a part of:
 ARRAY=[];
-ARRAY.name='YYYY';
+ARRAY.name='MVCO';
 %%% array name, does not have to be four letters like radial sites, can be the
 %%% same name for multiple radar sites that contribute to coverage within an area
 
@@ -198,7 +199,7 @@ CONST.goprint=[0 0];
 CONST.files_to_process_method=1;
 %%% if using this method, need to set the time bounds
 %%% set the time frame to examine, only used by method 1
-start_time=datenum(2018,9,1,0,0,0);
+start_time=datenum(2018,8,1,0,0,0);
 end_time=datenum(2018,11,1,0,0,0);
 CONST.files_to_process_dates=[start_time end_time];
 
@@ -227,7 +228,7 @@ CONST.files_to_process_dates=[start_time end_time];
 %%% for this site, prepare for processing
 %%% sets up processing directories, loads site info and cal, and
 %%% identifies files that need processing
-HFR_DP_lera_ts2radial_prepwork_v4
+HFR_DP_lera_ts2radial_prepwork_v5
 
 
 %  %%% limit the number of files  on in any 1 pass of this processing.
@@ -238,11 +239,16 @@ HFR_DP_lera_ts2radial_prepwork_v4
 
 %%
 %%% now loop overeach file in fnames to process data
-for jjj=1:1; %:length(fnames)
+for jjj=1:length(fnames)
     
     %%% display the file to be processed
     filein=fnames{jjj}
     
+%     %%%% for cals, stop here and use:
+%     lera_time2spectra_forcal_v1
+%     
+%     return
+ 
     %%
     disp(filein)
     %%%% start processing steps list now that HEAD has been established.
@@ -458,7 +464,7 @@ end  % end jjj over fnames files
 
 toc
 diary off;
-clear all; close all;
+%clear all; close all;
 
 %%
 return
