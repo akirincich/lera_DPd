@@ -17,6 +17,9 @@
 % clean up of v3 and streamline of constants and how the pattern and
 % radar_header files are loaded.
 %
+% v5  1/2019  allowed for new measured pattern to be uploaded, changes to
+% load_lera_pattern and radar_pattern.  This uses the data found in 
+%  lera_time2spectra_forcal_v1 to get the pattern data
 %
 % Anthony Kirincich
 % WHOI PO
@@ -55,7 +58,9 @@ CONST.N=RC.NANT;
 
 %load site pattern file
 %%% use generalized pattern loading program.
-patt=load_lera_pattern_v1(CONST,RC);  %includes ideal for both lpwr and nwtp
+%patt=load_lera_pattern_v1(CONST,RC);  %includes ideal for both lpwr and nwtp
+%patt=load_lera_pattern_v2(CONST,RC);  %includes ideal for both lpwr and nwtp
+patt=load_lera_pattern_v3(CONST,RC);  %includes uses phi to form angle, not psi --5/2019
 
 %now go back to the working directory
 eval(['cd ' working_dir])
@@ -77,13 +82,16 @@ HEAD.ProcessingSteps=[];
 HEAD.Bearing=patt.Array_bearing;
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %%
-
+%%% adjuster for matching pattern
+%a=-5;
+a=0;
+ 
 %%% The pattern bearings are CCW (counter-clockwise) degrees referenced 
 %%% from the antenna bearing. The antenna bearing is found in Header.txt
 %%% and is (CW) clockwise degrees from true North. See the File_RadialSetups guide.
 %%% for details.
 %adjust angles to be in 'true'
-patt.angles=patt.Array_bearing-patt.angles;
+patt.angles=patt.Array_bearing+a-patt.angles;
 i=find(patt.angles>360); patt.angles(i)=patt.angles(i)-360;
 i=find(patt.angles<0); patt.angles(i)=patt.angles(i)+360;
  

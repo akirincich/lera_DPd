@@ -78,8 +78,8 @@ working_dir='/Users/anthony/Matlab/working/lera/lera_DPd';
 scripts_dir=[working_dir '/scripts/'];
 
 %%% Where are the data  (see HFR_DP_SETUP_README.m for instructions
-base_dir='/Users/anthony/Matlab/working/lera/lera_DP_testdata';
-%base_dir='/Users/anthony/Data/LERA_process';
+%base_dir='/Users/anthony/Matlab/working/lera/lera_DP_testdata';
+base_dir='/Users/anthony/Data/LERA_process';
 %base_dir='/Volumes/data/RadialSites';
 
 %%% Where do the DP logs go, if they are enabled...
@@ -139,13 +139,14 @@ CONST.doa_peak_thresh=.5;
 CONST.FOL_type='imageFOL';    %uses Image FOL methods
 %CONST.FOL_type='codarFOL';    %imports the COS FOLs from the spectral file
 
+CONST.whichant_FOL=5; % can be a single antenna or a group of antennas
+%CONST.whichant_FOL=8; % can be a single antenna or a group of antennas
+
 %%% Which radial averaging method to output, both are estimated in the
 %%% radave step, but only one can be sent out within the lluv file format.
-CONST.radave_type='regular';    %follows arthmetic averaging of the radials
-
-%  within the CONST.bearing_width area and error calcuation
-%CONST.radave_type='metricQC';   %follows Kirincich et al 2012 to use thresholding
-%  and power-weighted spatial means for rad ave
+%CONST.radave_type='regular';    %follows arthmetic averaging of the radials
+%CONST.radave_type='gaus';    %power weighted averages using gaussian smoother
+CONST.radave_type='metricQC';    %power weighted averages
 
 %%% which type of antenna manifold will be used
 CONST.which_patt='Ideal';
@@ -176,10 +177,10 @@ CONST.gohitch=1;    %find and remove a consistent 'hitch' in the chirps
 CONST.PC=[];
 CONST.PC.MaxRangeKM=100;        % the maximum ranges, in distance to be kept in spectra, from >0 to Max
 %CONST.PC.SpecOverlapPct=50;     %for WOSA, style increased ensembles into CSE
+%CONST.PC.SpeclengthPnts=1024;   %defines the number of points in the spectra
 
 CONST.PC.SpeclengthPnts=2048;   %defines the number of points in the spectra
 CONST.PC.SpecOverlapPct=78;     %for WOSA, style increased ensembles into CSE
-%CONST.PC.SpeclengthPnts=1024;   %defines the number of points in the spectra
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %%% set plotting and printing switches
@@ -187,7 +188,7 @@ CONST.PC.SpecOverlapPct=78;     %for WOSA, style increased ensembles into CSE
 CONST.goplot=[1 0];   %where:
 %  switch 1 controls the final plots of radial results, etc.  (1=plot, 0=do not plot)
 %  switch 2 controls the intermediary plots within functions  (1=plot, 0=do not plot)
-CONST.goprint=[0 0];
+CONST.goprint=[1 0];
 %  switch 1 prints the final plots of radial results, etc.  (1=print, 0=do not print)
 %  switch 2 prints the intermediary plots within functions  (1=print, 0=do not print)
 
@@ -199,8 +200,10 @@ CONST.goprint=[0 0];
 CONST.files_to_process_method=1;
 %%% if using this method, need to set the time bounds
 %%% set the time frame to examine, only used by method 1
-start_time=datenum(2018,8,1,0,0,0);
-end_time=datenum(2018,11,1,0,0,0);
+%start_time=datenum(2018,9,1,0,0,0);
+%end_time=datenum(2018,9,3,0,0,0);
+start_time=datenum(2018,5,23,17,0,0);
+end_time=datenum(2019,5,24,0,0,0);
 CONST.files_to_process_dates=[start_time end_time];
 
 %%% Method 2: compare css files to RM files, and process new files
@@ -228,8 +231,8 @@ CONST.files_to_process_dates=[start_time end_time];
 %%% for this site, prepare for processing
 %%% sets up processing directories, loads site info and cal, and
 %%% identifies files that need processing
-HFR_DP_lera_ts2radial_prepwork_v5
-
+%HFR_DP_lera_ts2radial_prepwork_v5
+HFR_DP_lera_ts2radial_prepwork_v6
 
 %  %%% limit the number of files  on in any 1 pass of this processing.
 %  %%% this can be helpful if running in realtime
@@ -243,19 +246,18 @@ for jjj=1:length(fnames)
     
     %%% display the file to be processed
     filein=fnames{jjj}
-    
-%     %%%% for cals, stop here and use:
-%     lera_time2spectra_forcal_v1
-%     
-%     return
- 
+     
     %%
     disp(filein)
     %%%% start processing steps list now that HEAD has been established.
     HEAD.ProcessingSteps={mfilename};
     %%% load the ts data for this file and make the ensemble-averaged spectra
-    [SpecHead,data,mtime]=lera_time2spectra_v6(incoming_ts_file_dir,incoming_spectra_file_dir,filein,RC,HEAD,CONST);
-    
+%    [SpecHead,data,mtime]=lera_time2spectra_v6(incoming_ts_file_dir,incoming_spectra_file_dir,filein,RC,HEAD,CONST);
+   
+    [SpecHead,data,mtime]=lera_time2spectra_v7(incoming_ts_file_dir,incoming_spectra_file_dir,filein,RC,HEAD,CONST);
+    %v7 corrects for mistake in the formation of the range series and
+    %spectral data
+   
     %%% save the spectra file
     %%%% get the output filename, based on the filein %%%%
     i=find(filein=='_');
@@ -321,7 +323,8 @@ for jjj=1:length(fnames)
         
         %%
         %%%% run radial metric processing %%%
-        HFR_DP_lera_spectra2radialmetric_process_v5    %update from 11/2018 for streamlined method selection
+%        HFR_DP_lera_spectra2radialmetric_process_v5    %update from 11/2018 for streamlined method selection
+        HFR_DP_lera_spectra2radialmetric_process_v6    %update to add constants for fols 
         
         %%%  again, output format of RM(jjj).data is similar to the radial metrics output
         %%%  with changes to the field contents to handle N=8
@@ -399,7 +402,8 @@ for jjj=1:length(fnames)
         if length(RM.data)>500;
             
             %%% compute radial averages
-            [RADIAL,HEAD]=HFR_DP_lera_RadialAverage_v1(RM,patt,HEAD,CONST);
+ %           [RADIAL,HEAD]=HFR_DP_lera_RadialAverage_v1(RM,patt,HEAD,CONST);
+            [RADIAL,HEAD]=HFR_DP_lera_RadialAverage_v2(RM,patt,HEAD,CONST);   %update to do different weighting on radave velocities
             
             %%% Clean large radials using ImageFOL user parameter for max velocity found
             for k = 1:numel(RADIAL)

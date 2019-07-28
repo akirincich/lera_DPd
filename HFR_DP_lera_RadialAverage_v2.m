@@ -1,4 +1,4 @@
-function [RADIAL,HEAD]=HFR_DP_lera_RadialAverage_v1(RM,patt,HEAD,CONST);
+function [RADIAL,HEAD]=HFR_DP_lera_RadialAverage_v2(RM,patt,HEAD,CONST);
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %function [RADIAL,HEAD]=HFR_DP_RadialAverage_v5(RM,HEAD,CONST);
@@ -32,6 +32,7 @@ function [RADIAL,HEAD]=HFR_DP_lera_RadialAverage_v1(RM,patt,HEAD,CONST);
 %
 %  VERSIONS:
 %     v1 create new for lera 8/2017
+%     v2  7/2019 for gaussian averaged  and streamlined for readability
 %
 % Anthony Kirincich
 % Woods Hole Oceanographic Institution
@@ -45,31 +46,9 @@ function [RADIAL,HEAD]=HFR_DP_lera_RadialAverage_v1(RM,patt,HEAD,CONST);
 %%% are and how they might be able to be appled here.  Most of the info is
 %%% found in the COS documention,
 %
-% Again, column output format of RM(jjj).data follows COS RSv7 radial metric
+% The column output format of RM(jjj).data loosely follows COS RSv7 radial metric
 %  file format with a few small changes to units and field content
-%   this is done for convienance and consistency
-%
-% cols.   Field
-% % 1-2     lat lon
-% % 3-4     u v   (here nan as will not be used)
-% % 5       flag    (here nan, used by COS but not here)
-% % 6       range
-% % 7       bearing
-% % 8       vel  ( in m/s, not cm/s )
-% % 9       direction
-% % 10      rangecell
-% % 11      dopcell
-% % 12      angselect
-% % 13-15   musicSnglang musicDuel1ang musicDuel2ang
-% % 16-18   musicEigenRatio musicpowerRatio musicoffRatio
-% % 19-21   musicSnglpow(v) musicDuel1pow(v) musicDuel2pow(v)      (in voltage (v) not power (db) )
-% % 22-24   musicSngl_pkwidth musicDuel1_pkwidth musicDuel2_pkwidth
-% % 25-27   musicDOASnglpeak musicDOADuel1peak musicDOADuel2peak
-% % 28-30   spectraA1(snr) spectraA2(snr) spectraA3(snr)
-% % 31-33   Eigenval1 Eigenval2 Eigenval3
-% % 34      Dual_reject  (still different from COS methods)
-% %
-% %
+
 % Output format of RM.data is significantly different than 
 % codar-type output radial metric files
 % cols   fields
@@ -77,9 +56,9 @@ function [RADIAL,HEAD]=HFR_DP_lera_RadialAverage_v1(RM,patt,HEAD,CONST);
 % 3-4    u v   (here nan as will not be used)
 % 5      flag    (here nan, used by COS but not here)
 % 6 range
-% 7 bearing   ... now in true
+% 7 bearing
 % 8 vel
-% 9 direction ... now in true
+% 9 direction
 % 10  rangecell
 % 11  dopcell
 % 12  angselect (which solution if isave out is given
@@ -87,29 +66,21 @@ function [RADIAL,HEAD]=HFR_DP_lera_RadialAverage_v1(RM,patt,HEAD,CONST);
 % 14 musicpow(v)
 % 15 music_pkwidth
 % 16 musicDOASpeak
-% 17 spectraA3(snr)
+% 17 spectrasnr(snr)
 % 18-20 musicEigenRatio musicpowerRatio musicoffRatio
 % 21-27 which solutions were viable (1 yes 0 no, for 1-7 (need better description/name)
 % 28-35 Eigenval (1-8)
 % 36   DF_flag (see above for explaination
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%
-%
 %%
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %%% Unpack processing thresholds
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-snr_thresh=CONST.radave_thresholds(1);
+snr_thresh=CONST.radave_thresholds(1)/5;  % 7/2019 change.
 angpeak_thresh=CONST.radave_thresholds(2);
 angwidth_thresh=CONST.radave_thresholds(3:4);
-
-% %%% define the list of ALL fields found within the data matrix coming from RM
-% vv={'LOND' 'LATD' 'VELU' 'VELV' 'VFLG' 'RNGE' 'BEAR' 'VELO' 'HEAD' 'SPRC' 'SPDC' 'MSEL' 'MSA1' 'MDA1' 'MDA2' 'MEGR' 'MPKR' 'MOFR' 'MSP1' 'MDP1' 'MDP2' 'MSW1' 'MDW1' 'MDW2' 'MSR1' 'MDR1' 'MDR2' 'MA1S' 'MA2S' 'MA3S' 'MEI1' 'MEI2' 'MEI3' 'MDRJ'};
-% %%% Basic List of 'radial' columns
-% cc = { 'LOND', 'LATD', 'RNGE', 'BEAR', 'HEAD', 'VELO' };
-% %%% full list of the non-radial fields that come out of RM
-% mm={'SPRC','SPDC','MSEL','MSA1','MDA1','MDA2','MEGR','MPKR','MOFR','MSP1','MDP1', 'MDP2','MSW1','MDW1','MDW2','MSR1','MDR1','MDR2','MA1S','MA2S','MA3S','MEI1','MEI2','MEI3','MDRJ'};
 
 %%% define the list of ALL fields found within the data matrix coming from RM
 vv={'LOND' 'LATD' 'VELU' 'VELV' 'VFLG' 'RNGE' 'BEAR' 'VELO' 'HEAD' 'SPRC' 'SPDC' ...
@@ -120,30 +91,6 @@ vv={'LOND' 'LATD' 'VELU' 'VELV' 'VFLG' 'RNGE' 'BEAR' 'VELO' 'HEAD' 'SPRC' 'SPDC'
 cc = { 'LOND', 'LATD', 'RNGE', 'BEAR', 'HEAD', 'VELO' };
 %%% full list of the non-radial fields that come out of RM
 mm={'SPRC' 'SPDC' 'MSEL' 'MPKN' 'MPWR' 'DOAW' 'DOAP' 'MSNR' 'MEGR' 'MPKR' 'MDFR' 'ISY1' 'ISY2' 'ISY3' 'ISY4' 'ISY5' 'ISY6' 'ISY7' 'MEI1' 'MEI2' 'MEI3' 'MEI4' 'MEI5' 'MEI6' 'MEI7' 'MEI8' 'DFFG'};
-
-% cols   fields
-% 1-2    lat lon
-% 3-4    u v   (here nan as will not be used)
-% 5      flag    (here nan, used by COS but not here)
-% 6 range
-% 7 bearing
-% 8 radvel
-% 9 direction
-% 10  rangecell
-% 11  dopcell
-
-% 12  angselect (which solution if isave out is given)
-% 13  which peak of this solution is given
-% 14 musicpow(v)
-% 15 music_pkwidth
-% 16 musicDOApeak
-% 17 spectraA3(snr)
-% 18-20 musicEigenRatio musicpowerRatio musicoffRatio
-
-% 21-27 which solutions were viable (1 yes 0 no, for 1-7 (need better description/name)
-% 28-35 Eigenval (1-8)
-% 36   DF_flag (see above for explaination
-
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %%% Other parameters to set, unlikely to change
@@ -158,6 +105,23 @@ i5=1;  % I'm only going to do this for one file at a time, although you could
 %  functions in HFR_Progs for an example.
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%  New in v2
+% make the gaussian function for use below, makes a gaussian function with
+% a 5 deg spread
+ig=[-length(patt.Bear): median(patt.Bear-floor(patt.Bear)): length(patt.Bear) ] ;  %accounts for variance in the pattern decimal
+Gaussian_alpha=160*1;
+g=gausswin(length(ig),Gaussian_alpha)';
+ i=find(g<.05); g(i)=nan;
+if strcmp(CONST.radave_type,'gaus')==1;
+    disp('doing gaussian weighted averaging')
+if CONST.goplot(2)==1;
+    figure(10); clf; plot(ig,g); hg; length(find(g>.5))/2
+    title(['using Gaussian with size ' num2str(length(find(g>.5))/2)])
+end
+else
+    disp('doing power weighted averaging')
+end
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %%% place the RM data into a modified RADIAL structure
@@ -170,10 +134,6 @@ fprintf('Processing radial averages for RM of: %s\n',R.FileName)
 R.TimeStamp = RM(i5).time;   %time
 R.TimeZone = 'GMT';          %timezone
 
-% for m = RADIALmatvars
-%     R.(m{:}) = zeros(0,1);
-% end
-
 % Add processing step to the structure
 R.ProcessingSteps{end+1} = [RM(i5).fname ' to RM with HFR_spectra2radialmetrics_process_v?'];
 R.SiteOrigin = RM(i5).Site_loc([2 1]);   % Origin Lat,Lon,
@@ -183,7 +143,6 @@ R.Type = patt.Pattern_type;                         % PatternType
 %%% find where the data of interest is:
 %%%   This might seem overly complex now, but it will allow for the RM file
 %%%   to be flexible in format without breaking the script.
-
 %%% Get the indices of critical fields for radial info only
 II = [];
 for k = 1:length(cc);
@@ -202,16 +161,11 @@ R.LonLat = RM(i5).data( :, II(1:2) );
 R.RangeBearHead = RM(i5).data( :, II(3:5) );
 R.RadComp = RM(i5).data(:,II(6))*100;  %convert to cm/s for rest of processing stream;
 
-% % Change 999 in any field into NaN - NaN's create massive problems for
-% % using error field to calculate totals error.
-% for m = RADIALmatvars
-%     m = m{:};
-%     R.(m)( R.(m) == 999 ) = NaN;
-% end
-
+% !!!!!!!!!!!!!!!!!!!!!!!!!!
 % Change direction to cartesian convention.  Note, however, that bearing
 % will still point away from radar and heading will still point towards radar.
 R.RangeBearHead(:,2:3) = true2math( R.RangeBearHead(:,2:3) );
+% !!!!!!!!!!!!!!!!!!!!!!!!!!
 
 %%% Get the indices of critical fields for radial metrics
 JJ = [];
@@ -228,72 +182,15 @@ end
 
 %output the whole thing as a large matrix
 R.Metric=RM(i5).data(:,JJ);
-%%% unneeded in lera
-% % with the metric, adjust BEARINGS to be in math coords
-% R.Metric(:,4)= true2math( R.Metric(:,4));
-% R.Metric(:,5)= true2math( R.Metric(:,5));
-% R.Metric(:,6)= true2math( R.Metric(:,6));
-
 % Add currently unused Flag (1 is for original radials).
 R.Flag = ones( size(R.RadComp) );
-
-%
-% % % U and V are optional but generally around - compute if absent
-% % II = strmatch( 'VELU', vv, 'exact' );
-% % JJ = strmatch( 'VELV', vv, 'exact' );
-% % if isempty(II) || isempty(JJ)
-% %     feval( warnfunc, [ mfilename ':MISSING_UV_DATA_COLUMN' ], ...
-% %         'U or V component missing - calculating from RadComp and Heading');
-% %     [R.U,R.V] = deal( R.RadComp .* cosd(R.RangeBearHead(:,3)), ...
-% %         R.RadComp .* sind(R.RangeBearHead(:,3)) );
-% % else
-% %     R.U = RM(i5).data(:,II);
-% %     R.V = RM(i5).data(:,JJ);
-% % end
-% % %calculate if they were nans
-% % if isempty(II)==0 && sum(~isnan(RM(i5).data(:,II)))==0
-% %     feval( warnfunc, [ mfilename ':UV_DATA_COLUMN_NANS' ], ...
-% %         'U or V component are nans - calculating from RadComp and Heading');
-% %     [R.U,R.V] = deal( R.RadComp .* cosd(R.RangeBearHead(:,3)), ...
-% %         R.RadComp .* sind(R.RangeBearHead(:,3))  );
-% % end
-%
-% % %
-% % % Deal with two possible names for error column.
-% % I1 = strmatch( 'ETMP', vv, 'exact' );  %a normal radial file would have this.
-% % I2 = strmatch( 'STDV', vv, 'exact' );  %old name
-% % I3 = strmatch( 'MSA1', vv, 'exact');   %a radial metric file would have this
-% %
-% % if ~isempty(I1)==1   %if error column is named ETMP
-% %     R.Error = RM(i5).data(:,I2);
-% % end
-% % if ~isempty(I2)==1    %if error column is named STDV
-% %     R.Error = RM(i5).data(:,I2);
-% % end
-% % if isempty(I1) & isempty(I2)
-% %       feval( warnfunc, [ mfilename ':MISSING_ERROR_DATA_COLUMN' ], ...
-% %              'Error column missing. Errors will all be NaN');
-% %     R.Error = repmat(NaN,size(R.RadComp));
-% % end
-% % %%
-% % if ~isempty(I3)==1    %radial metric file load the rest of the parameters.
-% %
-%
-% % end  %%% ~isempty(I3)==1
-%
-% % % Change 999 in any field into NaN - NaN's create massive problems for
-% % % using error field to calculate totals error.
-% % for m = RADIALmatvars
-% %     m = m{:};
-% %     R.(m)( R.(m) == 999 ) = NaN;
-% % end
 
 %%
 
 %%%%%%% new parts that convert the radial metric data to regular radials %%%%% %%%%%
 if isempty(R.Metric)==0 & isempty(find(~isnan(R.Metric(:))==1))==0  %%% skip files that are empty
     %%
-    %%%% doing this range binning separately for each file will allow variable
+    %%%% doing this range bin separately for each file will allow variable
     %%%% ranges to be combined into the same timeseries...although later
     %%%% averaging will have to account for this as well.
     
@@ -311,8 +208,7 @@ if isempty(R.Metric)==0 & isempty(find(~isnan(R.Metric(:))==1))==0  %%% skip fil
         end
     end
     %%% sometimes the longitude comes out greater than +/180deg, im not
-    %%% sure why.  and its not wrong mbut interfers with the plotting 
-    %%%   fix
+    %%% sure why.  and its not wrong mbut interfers with the plotting, fix
     i=find( FLonLat(:,1) >180);    FLonLat(i,1)=FLonLat(i,1)-360;
     FRangeBearHead(:,2)=true2math(FRangeBearHead(:,2));
     FRangeBearHead(:,3)=true2math(FRangeBearHead(:,3));
@@ -334,8 +230,7 @@ if isempty(R.Metric)==0 & isempty(find(~isnan(R.Metric(:))==1))==0  %%% skip fil
         a=a+1;
     end
     %%% sometimes the longitude comes out greater than +/180deg, im not
-    %%% sure why.  and its not wrong mbut interfers with the plotting 
-    %%%   fix
+    %%% sure why.  and its not wrong mbut interfers with the plotting, fix
     i=find( FmLonLat(:,1) >180);    FmLonLat(i,1)=FmLonLat(i,1)-360;
 
     %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -344,11 +239,10 @@ if isempty(R.Metric)==0 & isempty(find(~isnan(R.Metric(:))==1))==0  %%% skip fil
     
     %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
     %%% new section to process this data for the given patt file
-    %
-    % DOA Peak Value                                %msr1 mdr1 mdr2
-    % DOA Function Width (at half power)            %msw1 mdw1 mdw2
-    % Signal Power (a measure of the eigenvalue)    %msp1 mdp1 mdp2
-    % Antenna 1,2,3 SNR for this doppler cell       %ma1s ma2s ma3s
+    % DOA Peak Value                               
+    % DOA Function Width (at half power)            
+    % Signal Power (a measure of the eigenvalue)    
+    % Antenna 1,2,3 SNR for this doppler cell       
     
     %Build output structure with gridded products....
     RADIAL(i5).LonLat=FLonLat(:,1:2);
@@ -361,137 +255,139 @@ if isempty(R.Metric)==0 & isempty(find(~isnan(R.Metric(:))==1))==0  %%% skip fil
     
     %%
     for jj=1:length(range);     %loop over each range cell,
-        ii=find(R.Metric(:,1)==jj);   %find all data that falls in this range
-        
-        %find the bearing selected for each row of data...
-        %   because the bearings of each of the angles in a duel angle solution are given...
-        %   ...use Bearing_Select (column 3) to extract the MUSIC defined bearing
-        % How?  make a mask for  M.Bearing that picks the defined
-        % bearing only and gives mbearing, an array of the chosen
-        % bearing for each data row matching the range cell...
-        % all in three lines of code!
-% .  this is the way codar needs to work it
-%         a=R.Metric(ii,3)*[1 1 1];  b=ones(size(ii))*[1 2 3];
-%         c=a.*b-b.^2;  i=find(c~=0); c(i)=nan; c=c+1;
-%         mbearing=nanmean(R.Metric(ii,4:6).*c,2);
-         % but in the lera files, the bearing selected is given outright in
+    %%
+    ii=find(R.Metric(:,1)==jj);   %find all data that falls in this range 
+         % in lera files, the bearing selected is given outright in
          % each line
          mbearing=R.RangeBearHead(ii,2);
         
-        RAM=[]; % clear a structure that would hold all the individal groups
+   %     RAM=[]; % clear a structure that would hold all the individal groups  %This is not needed in v2
         % of radial for this range circle
         %%% for each ave bearing window, in this range cell, place all the found velocities within a new matrix
         for kk=1:length(patt.Bear);
-          %  if patt.Bear(kk)<2.5 | patt.Bear(kk)>357.5;    %%%allows the radial near mathdeg=0 to capture the 5deg swath needed
-          %      i3=[find(mbearing<patt.Bear_ends(kk))' find(mbearing>=patt.Bear_ends(kk+1))'];
-          %  else
-               % i3=find(mbearing<patt.Bear_ends(kk) & mbearing>=patt.Bear_ends(kk+1));
-               i3=find(mbearing<max(patt.Bear_ends(:,kk)) & mbearing>=min(patt.Bear_ends(:,kk)))        ;  %account for new matrix form of
-          %  end
-            
-            if ~isempty(i3)==1;  %found music output for this Bear/Range
-                RAM(kk).Range_cell=jj;
-                RAM(kk).Bear=patt.Bear(kk);
-                RAM(kk).vlist=length(i3);
-                RAM(kk).LonLat=R.LonLat(ii(i3),:);
-                RAM(kk).RangeBearHead=R.RangeBearHead(ii(i3),:);
-                RAM(kk).RadComp=R.RadComp(ii(i3));
-                RAM(kk).Metric=R.Metric(ii(i3),:);
-                
+              
+            %%% all the points that match this bearing exactly
+           i3=find(mbearing<max(patt.Bear_ends(:,kk)) & mbearing>=min(patt.Bear_ends(:,kk))) ; 
+            %find the relbear of all points on this range circle
+               %%% for the gaussian smoother
+               relbear=mbearing-patt.Bear(kk);
+               %get rid of bearings far out of domain
+               i=find(abs(relbear)<length(patt.Bear));  i1=ii(i); relbear=relbear(i);
+               %get the indices of the ig where data is found
+               irelbear=[];
+               for j=1:length(relbear)
+                   irelbear(j)=find(ig==relbear(j));
+               end      
+
                 %%%% find the azimuthal deg grid point that matches this bin
                 i2=find(RADIAL(i5).RangeBearHead(:,1)==range(jj));
                 i22=find(RADIAL(i5).RangeBearHead(i2,2)==patt.Bear(kk));
-                %so use i2(i22)
-                
-%                 %get power, volt, ang_width, and ang_peak for each velocity in list
-%                 a=RAM(kk).Metric(:,3)*[1 1 1];  b=ones(RAM(kk).vlist,1)*[1 2 3];
-%                 c=a.*b-b.^2;  i=find(c~=0); c(i)=nan; c=c+1;
-%                 %%% in the RM files 10:12 are the signal voltages, not powers
-%                 volt=nanmean(abs(RAM(kk).Metric(:,10:12)).*c,2);
-%                 power=10*log10(abs(volt)) + (-40 + 5.8);
-%                 ang_width=nanmean(RAM(kk).Metric(:,13:15).*c,2);
-%                 ang_peak=nanmean(RAM(kk).Metric(:,16:18).*c,2); % what is the real unit of this number?
-%                 ant_snr=RAM(kk).Metric(:,19:21);
+                %so use i2(i22) to place the data in the outgoing structure
 
-              %get power, volt, ang_width, and ang_peak for each velocity in list
+                %setup with blank returns
+                a=[nan nan]; b=[nan nan]; met=nan.*ones(1,6); ave_solution=nan;
+     if ~isempty(i3)==1;  %if data exists at this bearing
+     %%%%% for the data at this bearing
+                %get power, volt, ang_width, and ang_peak for each velocity in list
+                sp=R.RadComp(ii(i3));
                 %%% in the RM files 10:12 are the signal voltages, not powers
-                volt=RAM(kk).Metric(:,5);
-                power=10*log10(abs(volt)) + (-40 - 5.8);
-                ang_width=RAM(kk).Metric(:,6);
-                ang_peak=RAM(kk).Metric(:,7); % what is the real unit of this number?
-                ant_snr=RAM(kk).Metric(:,8);
- 
-                %%%%%%% time to cut data with bad...
-                %%%snr
- %               isnr=find(ant_snr(:,3) < snr_thresh);     %only use snr in ant3 as others might be low b/c bearing is in a null region of the antenna (and then it would be a good thing)
-               isnr=find(ant_snr < snr_thresh);     %only use snr in ant3 as others might be low b/c bearing is in a null region of the antenna (and then it would be a good thing)
+                volt=R.Metric(ii(i3),5); %RAM(kk).Metric(:,5);
+                power=20*log10(abs(volt)) + 200;   % The db has to be pos, for power weighting     
+                ang_width=R.Metric(ii(i3),6); %RAM(kk).Metric(:,6);
+                ang_peak=R.Metric(ii(i3),7); %RAM(kk).Metric(:,7); % what is the real unit of this number?
+                ant_snr=R.Metric(ii(i3),8); %RAM(kk).Metric(:,8);
+                
+    %%%%%%% time to cut data with bad... for regular data
+                isnr=find(ant_snr < snr_thresh);   
                 ant_snr(isnr,:)=nan;
                 isnr_a=find(isnan(mean(ant_snr,2))==0);
-                isnr_b=find(isnan(mean(ant_snr,2))==1);  %for flag
-                
+                isnr_b=find(isnan(mean(ant_snr,2))==1);  %for flag               
                 %%%ang_width
                 iaw_a=find(ang_width > angwidth_thresh(1) & ang_width < angwidth_thresh(2));
                 iaw_b=find(ang_width < angwidth_thresh(1) | ang_width > angwidth_thresh(2)); %for flag
-                
                 %%% ang_peak
                 iap_a=find(ang_peak > angpeak_thresh);
-                iap_b=find(ang_peak < angpeak_thresh);  %for flags
-                
+                iap_b=find(ang_peak < angpeak_thresh);  %for flags                
                 %%%%%% find the radials that pass all the tests
                 igood=intersect(isnr_a,intersect(iaw_a,iap_a));
+               
                 %%% make flags for this
                 %RADIAL(i4).Flag(i2(i22),2)=[length(igood)*1e6 + length(isnr_b)*1e4 + length(iaw_b)*1e2+length(iap_b)];
                 %%%  [ #of_ang_peak_cut (2digits)  #of_ang_width_cut (2digits)    #of_snr3_cut  # of igood (2digits)  ];
                 RADIAL(i5).Flag(i2(i22),2)=[ length(iap_b)*1e6 + length(iaw_b)*1e4 + length(isnr_b)*1e2 + length(igood) ];
                 
-                if length(igood)>=1   %continue to make estimates of the average radial velocity
-                    
-                    if nvel_est==4;  %produce 4 different types of averages
+                   if length(igood)>=1   %continue to make estimates of the average radial velocity                       
                         %%establish data and weights arrays
-                        d=RAM(kk).RadComp(igood);
-                        w1=volt(igood)./sum(volt(igood));
-                        %w2=ang_peak(igood)./sum(ang_peak(igood));         % other potential weights to use
-                        %w2=ang_peakvolt(igood)./sum(ang_peakvolt(igood)); % other  potential weights to use
-                        w2=ant_snr(igood,3)./sum(ant_snr(igood,3));
-                        w3=(w1+w2)./2;
+                        d=sp(igood);
+                       % w1=volt(igood)./sum(volt(igood));   %voltage weighting
+                        w1=power(igood)./sum(power(igood));   %power weighting
                         %average
-                        a=[nanmean(d) sum(d.*w1) sum(d.*w2) sum(d.*w3)];
-                        
-                        if length(igood)>=3
-                            %do std devation   %%%% see http://en.wikipedia.org/wiki/Weighted_mean
-                            b= sqrt( [sum( (d-a(1)).^2)./(length(igood)-1) ...
-                                sum( w1.*((d-a(2)).^2))./(1-sum(w1.^2)) ...
-                                sum( w2.*((d-a(3)).^2))./(1-sum(w2.^2)) ...
-                                sum( w3.*((d-a(4)).^2))./(1-sum(w3.^2)) ] );
-                        else
-                            b=[nan nan nan nan];
-                        end
-                        
-                    elseif nvel_est==2;  %produce power-weighted and arthimetic averages only.
-                        %%establish data and weights arrays
-                        d=RAM(kk).RadComp(igood);
-                        w1=volt(igood)./sum(volt(igood));
-                        %average
-                        a=[nanmean(d) sum(d.*w1)];
-                        
+                        a=[nanmean(d) sum(d.*w1)];                       
                         if length(igood)>=3
                             %do std devation   %%%% see http://en.wikipedia.org/wiki/Weighted_mean
                             %%% w1 is normalized to sum(w1)=1, thus an 'unbiased' weighted variance
                             %%%      is not possible and sig^2 = sum(w1.*(d-a(2).^2)./V1  where V1 =sum(w1)=1
                             b= sqrt( [sum( (d-a(1)).^2)./(length(igood)-1) ...
                                 sum( w1.*((d-a(2)).^2))./1 ] );
-                        else
-                            b=[nan nan];
                         end
-                    end   %if nn=
+                   %return other average metrics for later QA/QC
+                    % (1) DOA Peak Value  (2) DOA Function Width (at half power) (3) Signal Power (4-6) ant1-3 snr
+                    met=[mean(ang_peak(igood)) mean(ang_width(igood)) mean(10*log10(nanmean(volt(igood)))+ 60) nan nan mean(ant_snr(igood),1) ];
+                    ave_solution=nanmean(R.Metric(ii(i3(igood)),3));
+                    end
+                 
+     end % if ~isempty(i3)==1;  %if data exists at this bearing
+                      
                     
+ if strcmp(CONST.radave_type,'gaus')==1 & ~isempty(irelbear)==1;  %if some data exists along this range cell proceed
+%%%%% for the data within this relative gaussian window range
+                %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+                   %%% for the data along the range circle, find the properties to ave
+                    %%% with a gaussian
+                    dall=R.RadComp(i1);
+                    powerall=20*log10(abs(R.Metric(i1,5))) + 200 ;   % The db has to be pos, this is done in the next step for sure,
+                    %powerall=powerall-(min(powerall)*[1-sign(min(powerall))*.1]); 
+                    powerall=powerall./max(powerall);  %normalize weight
+                    powerall(powerall<0)=nan;                    %remove low values 
+                    dpeak=10*log10(R.Metric(i1,7));
+                    ant_snrall=R.Metric(i1,8);
+                    %gaussian weight
+                    gv=powerall.*g(irelbear)';
+         %           igoodall=find(~isnan(dall)==1 & dpeak > CONST.doa_peak_thresh & isnan(gv)==0 & ant_snrall > snr_thresh);
+                    igoodall=find(~isnan(dall)==1 & isnan(gv)==0 & ant_snrall > snr_thresh);
+                    %normalize by data that is available. 
+                    gv=gv(igoodall)./nansum(gv(igoodall));                     
+
+                    if isempty(find(gv>1 | gv<0))==0;
+                        disp('there is something wrong with the weight function')
+                    end
+              
+                 if length(igoodall)>=1   %continue to make estimates of the average radial velocity
+                       %average
+                        a(2)=[sum(dall(igoodall).*gv)];                        
+                        if length(igoodall)>=3  %how the std dev is estimated
+                            %do std devation   %%%% see http://en.wikipedia.org/wiki/Weighted_mean
+                            %%% w1 is normalized to sum(w1)=1, thus an 'unbiased' weighted variance
+                            %%%      is not possible and sig^2 = sum(w1.*(d-a(2).^2)./V1  where V1 =sum(w1)=1
+                            b(2)= sqrt( sum( gv.*((dall(igoodall)-a(2)).^2))./1  );
+                        end  %igood length >3 or not  
+                       %return other average metrics for later QA/QC
+                    % (1) DOA Peak Value  (2) DOA Function Width (at half power) (3) Signal Power (4-6) ant1-3 snr
+                    met=[mean(dpeak(igoodall)) nan mean(powerall(igoodall)) nan nan mean(ant_snrall(igoodall),1) ];
+                 ave_solution=nanmean(R.Metric(i1(igoodall),3));
+                 end
+             % pause   
+        end  %if go irelbear
+        
+     %   if abs(diff(a))>50; andfa; end
+        
                     RADIAL(i5).RadComp(i2(i22),:)=a;
                     RADIAL(i5).Error(i2(i22),:)=b;
                     %whats the average solution used here 1,2, or 3?
-                    RADIAL(i5).Flag(i2(i22),1)=nanmean(RAM(kk).Metric(igood,3));
+                    RADIAL(i5).Flag(i2(i22),1)=ave_solution; %nanmean(R.Metric(igood,3)); %nanmean(RAM(kk).Metric(igood,3));
                     %return other average metrics for later QA/QC
                     % (1) DOA Peak Value  (2) DOA Function Width (at half power) (3) Signal Power (4-6) ant1-3 snr
-                    RADIAL(i5).Metric(i2(i22),:)=[mean(ang_peak(igood)) mean(ang_width(igood)) mean(10*log10(nanmean(volt(igood)))+ (-40 - 5.8)) nan nan mean(ant_snr(igood),1) ];
+                    RADIAL(i5).Metric(i2(i22),:)=met; %[mean(ang_peak(igood)) mean(ang_width(igood)) mean(10*log10(nanmean(volt(igood)))+ (-40 - 5.8)) nan nan mean(ant_snr(igood),1) ];
                     
                     
                     %%%% plot results, if we are in the weeds with looking
@@ -499,8 +395,6 @@ if isempty(R.Metric)==0 & isempty(find(~isnan(R.Metric(:))==1))==0  %%% skip fil
                     if length(i3)>5 & CONST.goplot(2)==1;
                         
                         angle=mbearing(i3);
-                        sp=RAM(kk).RadComp;
-                        %ant3snr=ant_snr(:,3);
                         ant3snr=ant_snr;
                         %regroup by angle
                         [s si]=sort(angle);
@@ -552,9 +446,9 @@ if isempty(R.Metric)==0 & isempty(find(~isnan(R.Metric(:))==1))==0  %%% skip fil
                         ylabel('speed cm/s');
                         
                         pause  %if your plotting this, you wish to look at every single result
-                    end  % if length(i3)  
-                end  %if length(igood)==                
-            end %isempty(i)
+                    end  % if length(i3)  plot
+               % end  %if length(igood)==                
+            %end %isempty(i)
         end %for kk
         
     end %jj length range

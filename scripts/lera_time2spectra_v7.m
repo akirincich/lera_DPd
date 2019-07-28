@@ -59,10 +59,18 @@ function [SpecHead,data,mtime]=lera_time2spectra_v(incoming_ts_file_dir,incoming
 %
 %    v6  11/2018 changes to streamline lera processing and comment method
 %
+%    v7  5/2019,  Correcting the velocity issue:  upsweep radars need to flip
+%          as the range power will map into the negitive range bin.  Also
+%          need to adjust I and Q to match...  This jives with Pierre's
+%          recent work on the Taiwanese system...
+%           -also fixing a new issue in the hitch detector to allow hitches
+%           that are near the close range boundary to be clipped.
+%
+%        added normalization by rms power at range bin 1 doppler shift ~0
+%
 % Anthony Kirincich
 %   WHOI-PO
 %   akirincich@whoi.edu
-%   11/20/2018
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %%
 % % %clear
@@ -126,6 +134,11 @@ RC=RCc;  %reload the radar_header version of the RC
 % timechirp=wera; clear wera werac wera1 sdata map data
 % mtime=0; file_chirps=2048;
 
+%%%%%%%%%%%%%%%
+%flip IQ channels...
+timechirp=timechirp([2 1],:,:,:);
+swpdir='up';
+
 %%
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %build a new header for the spectral output:
@@ -146,6 +159,12 @@ SpecHead.RangeResKm=SpecHead.RangeMaxKm*2/SpecHead.SamplesPerChirp;    %the min 
 %%%%  '1/2' for the rangeres * a 1/2 for the sample to fft length.
 %%%%      rangemax is better defined as    rangeres*samplesPerChirp/2
 SpecHead.FullRangeKm=(-SpecHead.SamplesPerChirp/2:SpecHead.SamplesPerChirp/2-1).*SpecHead.RangeResKm ;  %array of the ranges (neg and positive) for the range FFT
+
+% %if upsweep, reverse range coordinate to account for sweep direction
+% %difference
+% if strcmp(swpdir,'up')==1;
+%     SpecHead.FullRangeKm=-SpecHead.FullRangeKm;
+% end
 
 SpecHead.PC=PC;  %copy processing constants  into this header
 
@@ -189,6 +208,8 @@ SpecHead.c_vel=SpecHead.doppler_vel-[-SpecHead.v_p*ones(1,(SpecHead.PC.Speclengt
 %VelocityMaximum = c * DopplerMaximum / TransmitCenterFreqMHz./1e6
 %DopplerMaximum = DopplerResolution * NumberDopplerCells / 2
 
+%establish normpoint, the zero range, zero freq point to normalize by
+normpt=[find(SpecHead.RangeKm==min(abs(SpecHead.RangeKm))) find(SpecHead.doppler_freq==0)];   
 
 
 %%
@@ -219,11 +240,18 @@ for ichirp=1:file_chirps
     %do fft
 %    Y=fft(y.*(hanning(SpecHead.SamplesPerChirp)*ones(1,RC.NANT)));   %do the fft with a hanning window .  %better side lobe suppression.
     Y=fft(y.*(blackmanharris(SpecHead.SamplesPerChirp)*ones(1,RC.NANT)));   %do the fft with a hanning window .  %better side lobe suppression.
-    %shift to put the 0 frequency in the middle of the array
+%    %shift to put the 0 frequency in the middle of the array 
     Y=fftshift(Y,1);  %in agreement with SpecHead.FullRangeKm
+    
+    %if upsweep, reverse range coordinate to account for sweep direction
+    %difference
+    if strcmp(swpdir,'up')==1;
+        Y=flipud(Y);
+    end
     
     %%% place this result into new array of 
     range_data(:,ichirp,:)=Y;
+
 %     %correct the variance? out side of the big jump
 %     fs=1./(SpecHead.Tr/SpecHead.SamplesPerChirp)  %freq increment 
 %     parPy=(var(real(y(20:end-20,:))).*((SpecHead.SamplesPerChirp-1)./SpecHead.SamplesPerChirp))./abs(sum(real(Y).*fs))  
@@ -268,9 +296,10 @@ me=nanmean(y(ia)); ma=nanmax(y(ia));
 if CONST.goplot(2)==1; figure(20); clf; plot(y); hg; title('hitch finder'); end
 
 if ma>me.*hitch_factor; % a persistent hitch in the chirp is present.  redo this work with
-
+    
 i=find(y(ia)==ma);
-    gap=ia([i-hitch_factor_span i+hitch_factor_span]);
+%    gap=ia([i-hitch_factor_span i+hitch_factor_span]);
+    gap=[ia(i)-hitch_factor_span ia(i)+hitch_factor_span];  %fix on 5/2019
     igap=[(1:gap(1)-1) (gap(2)+1:SpecHead.SamplesPerChirp)];
     comment=sprintf('A hitch between chirp indices %2.0f and %2.0f was interped over',gap); 
     disp(comment)
@@ -288,9 +317,14 @@ for ichirp=1:file_chirps
     y=interp1(igap',real(y(igap,:)),1:SpecHead.SamplesPerChirp) + sqrt(-1).*interp1(igap',imag(y(igap,:)),1:SpecHead.SamplesPerChirp) ;
     %do fft
 %    Y=fft(y.*(hanning(SpecHead.SamplesPerChirp)*ones(1,RC.NANT)));   %do the fft with a hanning window .  %better side lobe suppression.
-    Y=fft(y.*(blackmanharris(SpecHead.SamplesPerChirp)*ones(1,RC.NANT)));   %do the fft with a hanning window .  %better side lobe suppression.
-    %shift to put the 0 frequency in the middle of the array
-    Y=fftshift(Y,1);  %in agreement with SpecHead.FullRangeKm
+    Y=fft(y.*(blackmanharris(SpecHead.SamplesPerChirp)*ones(1,RC.NANT)));   %do the fft with a hanning window .  %better side lobe suppression.    %    %shift to put the 0 frequency in the middle of the array  %the wrong way to shift?
+   Y=fftshift(Y,1);  %in agreement with SpecHead.FullRangeKm
+     %if upsweep, reverse range coordinate to account for sweep direction
+    %difference
+    if strcmp(swpdir,'up')==1;
+        Y=flipud(Y);
+    end
+    
     %%% place this result into new array of 
     range_data(:,ichirp,:)=Y;
 
@@ -319,7 +353,7 @@ end %if hitch is present
 end  %if gohitch
 
 %%% test case for proving fft and fftshift, following matlab docs
- 
+%  
 % fs = 100;               % sampling frequency
 % t = 0:(1/fs):(10-1/fs); % time vector
 % S1 = cos(2*pi*15*t);
@@ -329,8 +363,7 @@ end  %if gohitch
 % X = fft(A,[],2);
 % f = (0:n-1)*(fs/n);     % frequency range
 % power = abs(X).^2/n;    % power
-% figure(1); clf;
-% plot(f,power(1,:),f,power(2,:)); hg;
+% plot(f,power(1,:),f,power(2,:))
 % 
 % Y = fftshift(X,2);
 % fshift = (-n/2:n/2-1)*(fs/n); % zero-centered frequency range
@@ -377,9 +410,14 @@ for ii=1:RC.NANT
     for iii=1:SpecHead.nsegs;
         b=SpecHead.segments(iii):SpecHead.segments(iii)+SpecHead.PC.SpeclengthPnts-1;   %adjusted v4 for flexibility
         y=range_data_cut(:,b,ii);
-        Y=fft(y.*(ones(length(irange),1)*(hanning(SpecHead.PC.SpeclengthPnts)')),[],2);   %do the fft with a hamming window
+        Y=fft(y.*(ones(length(irange),1)*(hanning(SpecHead.PC.SpeclengthPnts)')),[],2);   %do the fft with a hamming window   
         Y=fftshift(Y,2);  %shift to put the 0 frequency in the middle.
-        saveY(:,:,ii,iii)=Y;
+        %       saveY(:,:,ii,iii)=Y;
+   %try normalizing each antenna by the rms power in a range around the center point  
+        nabs=sqrt(nanmean(abs(Y(normpt(1),[normpt(2)-floor(SpecHead.PC.SpeclengthPnts/500):normpt(2)+floor(SpecHead.PC.SpeclengthPnts/500)])).^2));
+        mag=abs(Y(:,:));
+        pha=atan2(imag(Y),real(Y));
+        saveY(:,:,ii,iii)=(mag./nabs).*exp(sqrt(-1).*pha);          
     end
     
   %%Make plots of the spectra as they are created

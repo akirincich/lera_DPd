@@ -139,13 +139,14 @@ CONST.doa_peak_thresh=.5;
 CONST.FOL_type='imageFOL';    %uses Image FOL methods
 %CONST.FOL_type='codarFOL';    %imports the COS FOLs from the spectral file
 
+CONST.whichant_FOL=5; % can be a single antenna or a group of antennas
+%CONST.whichant_FOL=8; % can be a single antenna or a group of antennas
+
 %%% Which radial averaging method to output, both are estimated in the
 %%% radave step, but only one can be sent out within the lluv file format.
-CONST.radave_type='regular';    %follows arthmetic averaging of the radials
-
-%  within the CONST.bearing_width area and error calcuation
-%CONST.radave_type='metricQC';   %follows Kirincich et al 2012 to use thresholding
-%  and power-weighted spatial means for rad ave
+%CONST.radave_type='regular';    %follows arthmetic averaging of the radials
+%CONST.radave_type='gaus';    %power weighted averages using gaussian smoother
+CONST.radave_type='metricQC';    %power weighted averages
 
 %%% which type of antenna manifold will be used
 CONST.which_patt='Ideal';
@@ -230,8 +231,8 @@ CONST.files_to_process_dates=[start_time end_time];
 %%% for this site, prepare for processing
 %%% sets up processing directories, loads site info and cal, and
 %%% identifies files that need processing
-HFR_DP_lera_ts2radial_prepwork_v5
-
+%HFR_DP_lera_ts2radial_prepwork_v5
+HFR_DP_lera_ts2radial_prepwork_v6
 
 %  %%% limit the number of files  on in any 1 pass of this processing.
 %  %%% this can be helpful if running in realtime
@@ -245,18 +246,17 @@ for jjj=1:length(fnames)
     
     %%% display the file to be processed
     filein=fnames{jjj}
-    
-%     %%%% for cals, stop here and use:
-%     lera_time2spectra_forcal_v1
-%     
-%     return
      
     %%
     disp(filein)
     %%%% start processing steps list now that HEAD has been established.
     HEAD.ProcessingSteps={mfilename};
     %%% load the ts data for this file and make the ensemble-averaged spectra
-    [SpecHead,data,mtime]=lera_time2spectra_v6(incoming_ts_file_dir,incoming_spectra_file_dir,filein,RC,HEAD,CONST);
+%    [SpecHead,data,mtime]=lera_time2spectra_v6(incoming_ts_file_dir,incoming_spectra_file_dir,filein,RC,HEAD,CONST);
+   
+    [SpecHead,data,mtime]=lera_time2spectra_v7(incoming_ts_file_dir,incoming_spectra_file_dir,filein,RC,HEAD,CONST);
+    %v7 corrects for mistake in the formation of the range series and
+    %spectral data
    
     %%% save the spectra file
     %%%% get the output filename, based on the filein %%%%
@@ -323,7 +323,8 @@ for jjj=1:length(fnames)
         
         %%
         %%%% run radial metric processing %%%
-        HFR_DP_lera_spectra2radialmetric_process_v5    %update from 11/2018 for streamlined method selection
+%        HFR_DP_lera_spectra2radialmetric_process_v5    %update from 11/2018 for streamlined method selection
+        HFR_DP_lera_spectra2radialmetric_process_v6    %update to add constants for fols 
         
         %%%  again, output format of RM(jjj).data is similar to the radial metrics output
         %%%  with changes to the field contents to handle N=8
@@ -401,7 +402,8 @@ for jjj=1:length(fnames)
         if length(RM.data)>500;
             
             %%% compute radial averages
-            [RADIAL,HEAD]=HFR_DP_lera_RadialAverage_v1(RM,patt,HEAD,CONST);
+ %           [RADIAL,HEAD]=HFR_DP_lera_RadialAverage_v1(RM,patt,HEAD,CONST);
+            [RADIAL,HEAD]=HFR_DP_lera_RadialAverage_v2(RM,patt,HEAD,CONST);   %update to do different weighting on radave velocities
             
             %%% Clean large radials using ImageFOL user parameter for max velocity found
             for k = 1:numel(RADIAL)
