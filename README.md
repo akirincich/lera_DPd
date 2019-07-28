@@ -12,6 +12,7 @@ Kirincich, A., B. Emery, L. Washburn, and P. Flament, 2018. Surface Current Mapp
 
 for details about the radar systems, the processing methodologies, and validation comparisons.
 
+This package is citable as DOI:10.5281/zenodo.3353662 .
 
 Anthony Kirincich 
 WHOI-PO 
